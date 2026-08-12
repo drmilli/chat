@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { avatarGradient, dayKey, dayLabel, formatTime, initials, senderColor, shortId } from './identity';
 import { VoiceMessage } from './VoiceMessage';
+import { resolveMediaUrl } from './api';
 
 export type ChatMessage = {
   id: number;
@@ -150,7 +151,7 @@ export function ChatHistory({
                   <div className="tg-text">
                     <VoiceMessage
                       messageId={message.id}
-                      src={message.audioUrl}
+                      src={resolveMediaUrl(message.audioUrl)!}
                       durationMs={message.duration_ms}
                       own={own}
                     />

@@ -1,8 +1,16 @@
 // Shared config + contract-address helpers for the extension surfaces
 // (content script, background worker, popup).
 
-export const WEB_APP_URL = 'http://localhost:4173';
-export const API_URL = 'http://localhost:3000';
+// Build-time overrides for local development:
+//   VITE_API_URL=http://localhost:3000 VITE_WEB_APP_URL=http://localhost:4173 npm run build
+// Whatever these resolve to must also appear in manifest.json `host_permissions`,
+// or the popup's fetches and the widget iframe are blocked.
+const fromEnv = (key: string, fallback: string): string =>
+  (((import.meta as any).env?.[key] as string | undefined) || fallback).replace(/\/+$/, '');
+
+export const API_URL = fromEnv('VITE_API_URL', 'https://chat-ol91.onrender.com');
+
+export const WEB_APP_URL = fromEnv('VITE_WEB_APP_URL', 'https://token-chat.vercel.app');
 
 export const SUPPORTED_SITES = [
   { host: 'gmgn.ai', label: 'GMGN' },

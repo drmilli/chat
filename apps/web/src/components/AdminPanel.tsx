@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { apiUrl } from '@token-chat/ui';
 
 type Ban = {
   id: number;
@@ -38,7 +39,7 @@ export function AdminPanel() {
     async function load() {
       setLoading(true);
       try {
-        const [bansRes, patternsRes] = await Promise.all([fetch('/api/bans'), fetch('/api/admin/blocklist')]);
+        const [bansRes, patternsRes] = await Promise.all([fetch(apiUrl('/api/bans')), fetch(apiUrl('/api/admin/blocklist'))]);
         const [bansData, patternsData] = await Promise.all([bansRes.json(), patternsRes.json()]);
         setBans(bansData.bans || []);
         setPatterns(patternsData.patterns || []);
@@ -52,7 +53,7 @@ export function AdminPanel() {
   }, []);
 
   async function togglePattern(patternId: number, active: boolean) {
-    await fetch(`/api/admin/blocklist/${patternId}`, {
+    await fetch(apiUrl(`/api/admin/blocklist/${patternId}`), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ active: !active }),
@@ -63,7 +64,7 @@ export function AdminPanel() {
   async function createPattern(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!newPattern.trim()) return;
-    const response = await fetch('/api/admin/blocklist', {
+    const response = await fetch(apiUrl('/api/admin/blocklist'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pattern: newPattern.trim() }),
@@ -78,7 +79,7 @@ export function AdminPanel() {
   async function createBan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!banReason.trim()) return;
-    const response = await fetch('/api/bans', {
+    const response = await fetch(apiUrl('/api/bans'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -99,7 +100,7 @@ export function AdminPanel() {
   }
 
   async function toggleBanActive(banId: number, active: boolean) {
-    const response = await fetch(`/api/bans/${banId}`, {
+    const response = await fetch(apiUrl(`/api/bans/${banId}`), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ active: !active }),
@@ -111,7 +112,7 @@ export function AdminPanel() {
   }
 
   async function deleteBan(banId: number) {
-    const response = await fetch(`/api/bans/${banId}`, { method: 'DELETE' });
+    const response = await fetch(apiUrl(`/api/bans/${banId}`), { method: 'DELETE' });
     if (response.ok) {
       setBans((current) => current.filter((ban) => ban.id !== banId));
     }

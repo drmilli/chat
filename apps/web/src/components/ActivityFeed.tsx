@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { avatarGradient, initials, shortId } from '@token-chat/ui';
+import { avatarGradient, apiUrl, initials, shortId } from '@token-chat/ui';
 
 type ActivityEvent = {
   kind: 'message' | 'room_created';
@@ -32,7 +32,7 @@ export function ActivityFeed({ limit = 12 }: { limit?: number }) {
 
     async function load() {
       try {
-        const res = await fetch(`/api/activity?limit=${limit}`);
+        const res = await fetch(apiUrl(`/api/activity?limit=${limit}`));
         if (!res.ok) {
           throw new Error(
             res.status === 404

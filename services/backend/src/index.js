@@ -12,9 +12,21 @@ const audioRouter = require('./routes/audio');
 const { rateLimiter } = require('./middleware/rateLimiter');
 const { errorHandler } = require('./middleware/errorHandler');
 const { createRealtimeClient } = require('./realtime/adapter');
+const hub = require('./realtime/hub');
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Do not advertise the framework.
+app.disable('x-powered-by');
+
+// Behind a proxy/CDN every request otherwise arrives with the proxy's IP, so
+// the whole internet shares one rate-limit bucket. Opt in explicitly: enabling
+// this without a proxy in front would let clients spoof X-Forwarded-For.
+if (process.env.TRUST_PROXY) {
+  const hops = Number(process.env.TRUST_PROXY);
+  app.set('trust proxy', Number.isFinite(hops) ? hops : process.env.TRUST_PROXY);
+}
 const realtime = createRealtimeClient();
 app.locals.realtime = realtime;
 
@@ -36,7 +48,7 @@ app.use(rateLimiter);
 app.get('/api/health', async (req, res) => {
   try {
     const result = await query('SELECT 1 AS ok');
-    res.json({ status: 'ok', db: result.rows[0].ok === 1 });
+    res.json({ status: 'ok', db: result.rows[0].ok === 1, realtime: hub.stats() });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }

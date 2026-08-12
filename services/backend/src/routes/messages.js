@@ -1,5 +1,6 @@
 const express = require('express');
 const { query } = require('../db');
+const hub = require('../realtime/hub');
 const {
   contentMatchesBlockedPatterns,
   fetchActiveBlocklistPatterns,
@@ -97,6 +98,48 @@ const ALLOWED_AUDIO_MIME = ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg'
 function baseMime(value) {
   return String(value || '').split(';')[0].trim().toLowerCase();
 }
+
+// Live message stream for a room (Server-Sent Events).
+// Chosen over WebSockets because delivery is one-way: clients still POST
+// messages over plain HTTP, and EventSource reconnects on its own.
+router.get('/:id/stream', (req, res) => {
+  const roomId = req.params.id;
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    // no-transform stops proxies from buffering; X-Accel-Buffering does the
+    // same for nginx, which otherwise holds the stream until it fills a buffer.
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders?.();
+
+  const send = (event) => {
+    res.write(`event: ${event.type}\n`);
+    res.write(`data: ${JSON.stringify(event.data)}\n\n`);
+  };
+
+  const unsubscribe = hub.subscribe(roomId, send);
+  if (!unsubscribe) {
+    send({ type: 'error', data: { error: 'Too many live connections, retry shortly' } });
+    return res.end();
+  }
+
+  send({ type: 'ready', data: { roomId } });
+
+  // Keeps proxies from culling an idle connection AND lets the client tell a
+  // live stream from a silently dead one. A bare comment line would keep the
+  // socket warm but stays invisible to EventSource, so this is a real event.
+  const heartbeat = setInterval(() => {
+    send({ type: 'ping', data: { at: Date.now() } });
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+  });
+});
 
 router.get('/:id/messages', async (req, res, next) => {
   const roomId = req.params.id;
@@ -248,10 +291,14 @@ router.post('/:id/messages', async (req, res, next) => {
       displayName: authorName,
     };
 
+    // Deliver to everyone currently watching this room.
+    hub.publish(roomId, { type: 'message.created', data: { message } });
+
+    // Optional external transport (unconfigured by default).
     const realtime = req.app.locals.realtime;
     if (realtime && typeof realtime.publish === 'function') {
-      realtime.publish(`room:${roomId}`, { type: 'message.created', message }).catch((err) => {
-        console.warn('Realtime publish failed:', err.message || err);
+      realtime.publish(`room:${roomId}`, { type: 'message.created', message }).catch(() => {
+        /* the SSE hub above is the delivery path that matters */
       });
     }
 

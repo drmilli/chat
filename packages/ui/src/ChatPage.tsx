@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ethers } from 'ethers';
 import { ChatComposer } from './ChatComposer';
 import { ChatHistory, ChatMessage } from './ChatHistory';
 import { avatarGradient, initials, shortId } from './identity';
 import { MAX_NAME_LENGTH, useProfile } from './useProfile';
+import { apiUrl } from './api';
 
 const erc20Abi = [
   'function name() view returns (string)',
@@ -41,6 +42,22 @@ function byOldestFirst(messages: ChatMessage[]): ChatMessage[] {
   return [...messages].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 }
 
+/**
+ * Insert a message, replacing any existing entry with the same id.
+ *
+ * Both the POST response and the SSE echo carry the same row, and either can
+ * arrive first — the server publishes to the hub as soon as it inserts, so on a
+ * slow round-trip the echo beats the response. Appending blindly rendered the
+ * sender's own message twice.
+ */
+function upsertMessage(current: ChatMessage[], incoming: ChatMessage): ChatMessage[] {
+  const index = current.findIndex((message) => message.id === incoming.id);
+  if (index === -1) return byOldestFirst([...current, incoming]);
+  const next = [...current];
+  next[index] = { ...next[index], ...incoming };
+  return next;
+}
+
 export function ChatPage({
   contractAddress,
   embedMode,
@@ -66,6 +83,7 @@ export function ChatPage({
   const [expanded, setExpanded] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [live, setLive] = useState(false);
 
   const profile = useProfile(walletAccount);
   const identity = profile.identityId;
@@ -76,43 +94,131 @@ export function ChatPage({
     [messages]
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
+  const loadMessages = useCallback(
+    async ({ initial }: { initial: boolean }) => {
+      if (initial) setLoading(true);
       try {
-        const res = await fetch(`/api/rooms/${contractAddress}/messages?limit=50`);
+        const res = await fetch(apiUrl(`/api/rooms/${contractAddress}/messages?limit=50`));
         if (!res.ok) throw new Error(`API responded ${res.status}`);
         const data = await res.json();
-        if (cancelled) return;
         setMessages(byOldestFirst(data.messages || []));
         setLoadError(null);
       } catch (err: any) {
         // Failing silently here renders an empty room, which is
         // indistinguishable from a working room nobody has posted in yet.
-        if (!cancelled) {
-          setMessages([]);
-          setLoadError(err?.message || 'Could not reach the chat API.');
-        }
+        if (initial) setMessages([]);
+        setLoadError(err?.message || 'Could not reach the chat API.');
       } finally {
-        if (!cancelled) {
+        if (initial) {
           setHiddenMessageIds(new Set());
           setReportedMessageIds(new Set());
           setLoading(false);
         }
       }
-    }
-    load();
-    return () => {
-      cancelled = true;
+    },
+    [contractAddress]
+  );
+
+  useEffect(() => {
+    loadMessages({ initial: true });
+  }, [loadMessages]);
+
+  // Live updates over SSE.
+  //
+  // EventSource's built-in retry is not enough: when the API is briefly down, a
+  // retry through a proxy answers with a non-`text/event-stream` error page,
+  // which makes the browser give up PERMANENTLY — the page then sits there
+  // looking connected while receiving nothing. So reconnection is driven here,
+  // and a watchdog treats a stream that has gone quiet (no message, no server
+  // ping) as dead even when no error ever fires.
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') return;
+
+    let source: EventSource | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+    let opens = 0;
+    let lastEventAt = Date.now();
+    let closed = false;
+
+    const scheduleReconnect = () => {
+      if (closed || retryTimer) return;
+      setLive(false);
+      // 2s, 4s, 8s… capped, so a long outage does not hammer the server.
+      const delay = Math.min(2000 * 2 ** attempts, 30000);
+      attempts += 1;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        connect();
+      }, delay);
     };
-  }, [contractAddress]);
+
+    function connect() {
+      if (closed) return;
+      source?.close();
+      lastEventAt = Date.now();
+
+      const next = new EventSource(apiUrl(`/api/rooms/${encodeURIComponent(contractAddress)}/stream`));
+      source = next;
+
+      next.addEventListener('ready', () => {
+        lastEventAt = Date.now();
+        attempts = 0;
+        opens += 1;
+        setLive(true);
+        // A dropped connection may have missed messages, so resync on every
+        // reconnect (the first open is covered by the initial load).
+        if (opens > 1) loadMessages({ initial: false });
+      });
+
+      next.addEventListener('ping', () => {
+        lastEventAt = Date.now();
+      });
+
+      next.addEventListener('message.created', (event) => {
+        lastEventAt = Date.now();
+        try {
+          const payload = JSON.parse((event as MessageEvent).data);
+          const incoming = payload?.message as ChatMessage | undefined;
+          if (incoming) setMessages((current) => upsertMessage(current, incoming));
+        } catch (err) {
+          /* ignore a malformed frame rather than tearing down the stream */
+        }
+      });
+
+      next.onerror = () => {
+        next.close();
+        scheduleReconnect();
+      };
+    }
+
+    // The server pings every 25s, so ~2 missed pings means the stream is dead
+    // even when no error was ever raised (a proxy can hold a socket open after
+    // the upstream has gone).
+    const watchdog = setInterval(() => {
+      if (Date.now() - lastEventAt > 60000) {
+        source?.close();
+        attempts = 0;
+        scheduleReconnect();
+      }
+    }, 15000);
+
+    connect();
+
+    return () => {
+      closed = true;
+      clearInterval(watchdog);
+      if (retryTimer) clearTimeout(retryTimer);
+      source?.close();
+      setLive(false);
+    };
+  }, [contractAddress, loadMessages]);
 
   // Sidebar room list — skipped in the embedded widget, which has no sidebar.
   useEffect(() => {
     if (embedMode) return;
     let cancelled = false;
-    fetch('/api/rooms?limit=25')
+    fetch(apiUrl('/api/rooms?limit=25'))
       .then((res) => {
         if (!res.ok) throw new Error(`rooms list unavailable (HTTP ${res.status})`);
         return res.json();
@@ -179,7 +285,7 @@ export function ChatPage({
   }, [walletConnected, walletAccount, contractAddress]);
 
   async function handleReport(messageId: number, identityId: string) {
-    const response = await fetch('/api/reports', {
+    const response = await fetch(apiUrl('/api/reports'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identityId, roomId: contractAddress, messageId, reason: 'user reported message' }),
@@ -194,7 +300,7 @@ export function ChatPage({
   }
 
   function handleSent(message: ChatMessage) {
-    setMessages((current) => byOldestFirst([...current, message]));
+    setMessages((current) => upsertMessage(current, message));
     setReplyTo(null);
     setSendError(null);
   }
@@ -336,7 +442,7 @@ export function ChatPage({
           <div className="tg-header-body">
             <p className="tg-header-title">{roomTitle}</p>
             <p className="tg-header-sub">
-              <span className="dot dot-live" />
+              <span className={`dot${live ? ' dot-live' : ''}`} />
               {messages.length} messages · {participants} online
             </p>
           </div>
@@ -415,8 +521,9 @@ export function ChatPage({
           <div className="tg-header-body">
             <p className="tg-header-title">{roomTitle}</p>
             <p className="tg-header-sub">
-              <span className="dot dot-live" />
+              <span className={`dot${live ? ' dot-live' : ''}`} title={live ? 'Live' : 'Reconnecting…'} />
               {participants} member{participants === 1 ? '' : 's'} · {messages.length} messages
+              {live ? '' : ' · reconnecting…'}
             </p>
           </div>
           <button type="button" className="btn btn-sm" onClick={connectWallet}>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { avatarGradient, initials, shortId } from '@token-chat/ui';
+import { avatarGradient, apiUrl, initials, shortId } from '@token-chat/ui';
 
 type RoomSummary = {
   id: string;
@@ -41,7 +41,7 @@ export function RoomsPage() {
 
     async function load() {
       try {
-        const [roomsRes, statsRes] = await Promise.all([fetch('/api/rooms?limit=25'), fetch('/api/rooms/stats')]);
+        const [roomsRes, statsRes] = await Promise.all([fetch(apiUrl('/api/rooms?limit=25')), fetch(apiUrl('/api/rooms/stats'))]);
         const failed = [roomsRes, statsRes].find((res) => !res.ok);
         if (failed) {
           // A 404 here almost always means the API process predates these routes.

@@ -23,7 +23,14 @@ Tests:
 - `npm run spike:detect` — loads the URLs in `scripts/detect/urls.json` in Chrome and runs the same real detectors against the live pages.
 
 Dev notes:
-- Backend (`localhost:3000`) and web app (`localhost:4173`) URLs live in `config.ts`; point them at deployed hosts before shipping and update `host_permissions` to match.
+- URLs live in `config.ts` and default to production:
+  - API: `https://chat-ol91.onrender.com`
+  - Web app: `http://localhost:4173` — **still the dev server**; room links and the
+    on-page widget will only work on a machine running it. Update once the
+    frontend has a domain, and add that domain to `host_permissions`.
+- For a local build: `VITE_API_URL=http://localhost:3000 VITE_WEB_APP_URL=http://localhost:4173 npm run build`.
+- Anything these resolve to must appear in `host_permissions` or the popup's
+  fetches and the widget iframe are blocked.
 - Use host_permissions limited to target domains only.
 - Keep widget HTML/CSS isolated (iframe + sandbox or Shadow DOM).
 - `normalizeCA` lowercases EVM addresses only — base58/Solana addresses are case-sensitive and must stay verbatim so extension and web app resolve to the same room. `apps/web/src/utils/ca.ts` mirrors this rule.

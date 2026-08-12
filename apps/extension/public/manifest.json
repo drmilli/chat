@@ -14,6 +14,8 @@
     "https://*.axiom.trade/*",
     "https://padre.gg/*",
     "https://*.padre.gg/*",
+    "https://chat-ol91.onrender.com/*",
+    "https://token-chat.vercel.app/*",
     "http://localhost:3000/*",
     "http://localhost:4173/*"
   ],

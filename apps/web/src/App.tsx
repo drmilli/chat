@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, useParams, Navigate, NavLink, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowUpRight, Link2, Mic, ShieldCheck, Wallet } from 'lucide-react';
-import { ChatPage } from '@token-chat/ui';
+import { ChatPage, apiUrl } from '@token-chat/ui';
 import { AdminPanel } from './components/AdminPanel';
 import { RoomsPage } from './components/RoomsPage';
 import { ActivityFeed } from './components/ActivityFeed';
@@ -171,7 +171,7 @@ function Landing({
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/rooms/stats')
+    fetch(apiUrl('/api/rooms/stats'))
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!cancelled && data) setStats(data);
