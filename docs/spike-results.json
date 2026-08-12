@@ -1,0 +1,42 @@
+[
+  {
+    "site": "gmgn",
+    "url": "https://gmgn.ai/sol/token/2P5FSiR4vhNcrXn6ttp1tgvvdqbH8tDMrQ7cDUijA5ry",
+    "urlOnly": "2P5FSiR4vhNcrXn6ttp1tgvvdqbH8tDMrQ7cDUijA5ry",
+    "withDom": "2P5FSiR4vhNcrXn6ttp1tgvvdqbH8tDMrQ7cDUijA5ry",
+    "finalUrl": "https://gmgn.ai/sol/token/2P5FSiR4vhNcrXn6ttp1tgvvdqbH8tDMrQ7cDUijA5ry",
+    "error": null
+  },
+  {
+    "site": "axiom",
+    "url": "https://axiom.trade/meme/Ba2baips1Rz2RhUSoSxknndVCwAJDwzzdEH8Z7kthkEe?chain=sol&pulseChains=sol,robinhood,bnb&trackerChains=sol,robinhood,bnb,eth",
+    "urlOnly": "Ba2baips1Rz2RhUSoSxknndVCwAJDwzzdEH8Z7kthkEe",
+    "withDom": "Ba2baips1Rz2RhUSoSxknndVCwAJDwzzdEH8Z7kthkEe",
+    "finalUrl": "https://axiom.trade/meme/Ba2baips1Rz2RhUSoSxknndVCwAJDwzzdEH8Z7kthkEe?chain=sol&pulseChains=sol,robinhood,bnb&trackerChains=sol,robinhood,bnb,eth",
+    "error": null
+  },
+  {
+    "site": "axiom",
+    "url": "https://axiom.trade/meme/GrUphJgzuzJHioCbYaU6GNecBfQ6QH99dF5jZKFmvMYH?chain=sol&pulseChains=sol,robinhood,bnb&trackerChains=sol,robinhood,bnb,eth",
+    "urlOnly": "GrUphJgzuzJHioCbYaU6GNecBfQ6QH99dF5jZKFmvMYH",
+    "withDom": "GrUphJgzuzJHioCbYaU6GNecBfQ6QH99dF5jZKFmvMYH",
+    "finalUrl": "https://axiom.trade/meme/GrUphJgzuzJHioCbYaU6GNecBfQ6QH99dF5jZKFmvMYH?chain=sol&pulseChains=sol,robinhood,bnb&trackerChains=sol,robinhood,bnb,eth",
+    "error": null
+  },
+  {
+    "site": "padre",
+    "url": "https://trade.padre.gg/trade/solana/2FpERCiZavDN4hCKx9Sb7SwgVeNmVUYThXS3hvvjgt9b",
+    "urlOnly": "2FpERCiZavDN4hCKx9Sb7SwgVeNmVUYThXS3hvvjgt9b",
+    "withDom": "2FpERCiZavDN4hCKx9Sb7SwgVeNmVUYThXS3hvvjgt9b",
+    "finalUrl": "https://trade.padre.gg/sign-in?backToUrl=%2Ftrade%2Fsolana%2F2FpERCiZavDN4hCKx9Sb7SwgVeNmVUYThXS3hvvjgt9b",
+    "error": null
+  },
+  {
+    "site": "padre",
+    "url": "https://trade.padre.gg/trade/solana/4o1G1NcA2sjq3VK7Xa4JANCn1ZKy2igqb3ZyZi991hWG",
+    "urlOnly": "4o1G1NcA2sjq3VK7Xa4JANCn1ZKy2igqb3ZyZi991hWG",
+    "withDom": "4o1G1NcA2sjq3VK7Xa4JANCn1ZKy2igqb3ZyZi991hWG",
+    "finalUrl": "https://trade.padre.gg/sign-in?backToUrl=%2Ftrade%2Fsolana%2F4o1G1NcA2sjq3VK7Xa4JANCn1ZKy2igqb3ZyZi991hWG",
+    "error": null
+  }
+]

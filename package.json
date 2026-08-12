@@ -1,0 +1,20 @@
+{
+  "name": "token-chat",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "bootstrap": "npm install",
+    "build": "cd services/backend && npm install && npm run build && cd ../../apps/web && npm install && npm run build && cd ../extension && npm install && npm run build",
+    "start": "cd services/backend && npm run start",
+    "spike:detect": "node scripts/detect/run-detection.mjs scripts/detect/urls.json",
+    "test:detect": "node scripts/detect/test-detectors.mjs",
+    "logo:build": "node scripts/logo/build-icons.js"
+  },
+  "dependencies": {
+    "playwright": "^1.62.1"
+  }
+}

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Token Chat — one room per contract</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:title" content="Token Chat — one room per contract" />
+    <meta
+      property="og:description"
+      content="Paste a contract address and land in that token's chat room. Wallet-native identity, voice messages, moderation built in."
+    />
+    <meta property="og:image" content="/logo-512.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Painted before the app stylesheet loads so there is no colour flash.
+         Must track the light theme — #root's colour is inherited by every
+         element that does not set one. */
+      html,
+      body,
+      #root {
+        margin: 0;
+        min-height: 100vh;
+        background: #f0f0f0;
+        color: rgba(30, 50, 90, 0.95);
+      }
+      body { overflow-x: hidden; }
+      * { box-sizing: border-box; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

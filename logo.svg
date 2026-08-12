@@ -1,0 +1,39 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="candle" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#00E28A"/>
+      <stop offset="1" stop-color="#00A96B"/>
+    </linearGradient>
+  </defs>
+
+  <!-- dark terminal tile -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="#0A0D12"/>
+
+  <!-- top wick -->
+  <rect x="249" y="44" width="14" height="52" rx="7" fill="url(#candle)"/>
+
+  <!-- candle body = chat bubble, tail tapers into bottom wick -->
+  <path fill="url(#candle)" d="
+    M168 96
+    H344
+    Q400 96 400 152
+    V296
+    Q400 352 344 352
+    H282
+    L262 400
+    Q256 412 250 400
+    L230 352
+    H168
+    Q112 352 112 296
+    V152
+    Q112 96 168 96
+    Z"/>
+
+  <!-- bottom wick continuing from the tail tip -->
+  <rect x="249" y="408" width="14" height="52" rx="7" fill="url(#candle)"/>
+
+  <!-- chat lines punched out of the candle body -->
+  <rect x="172" y="168" width="168" height="22" rx="11" fill="#0A0D12"/>
+  <rect x="172" y="214" width="122" height="22" rx="11" fill="#0A0D12"/>
+  <rect x="172" y="260" width="148" height="22" rx="11" fill="#0A0D12"/>
+</svg>

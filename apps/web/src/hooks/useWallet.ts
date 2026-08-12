@@ -1,0 +1,290 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+export type WalletKind = 'evm' | 'solana';
+
+/** An injected wallet the user can pick, discovered via EIP-6963 or a legacy global. */
+export type DiscoveredWallet = {
+  id: string;
+  name: string;
+  icon?: string;
+  kind: WalletKind;
+  provider: any;
+};
+
+export type WalletState = {
+  account: string | null;
+  chainId: string | null;
+  kind: WalletKind | null;
+  walletName: string | null;
+  error: string | null;
+  connecting: boolean;
+  isConnected: boolean;
+  /** No injected wallet at all — the UI should prompt the user to install one. */
+  noProvider: boolean;
+  /** Everything injected in this browser; more than one means the user must choose. */
+  wallets: DiscoveredWallet[];
+  /** True while the wallet picker should be shown. */
+  choosing: boolean;
+};
+
+const initialState: WalletState = {
+  account: null,
+  chainId: null,
+  kind: null,
+  walletName: null,
+  error: null,
+  connecting: false,
+  isConnected: false,
+  noProvider: false,
+  wallets: [],
+  choosing: false,
+};
+
+type AnyWindow = Window & {
+  ethereum?: any;
+  solana?: any;
+  phantom?: { solana?: any };
+};
+
+// A wallet popup the user never touches would otherwise leave the button stuck
+// on "Connecting…" forever.
+const REQUEST_TIMEOUT_MS = 60000;
+
+function legacyEvm(): DiscoveredWallet | null {
+  if (typeof window === 'undefined') return null;
+  const provider = (window as AnyWindow).ethereum;
+  if (!provider) return null;
+  const name = provider.isMetaMask ? 'MetaMask' : provider.isRabby ? 'Rabby' : provider.isCoinbaseWallet ? 'Coinbase Wallet' : 'Browser wallet';
+  return { id: 'legacy-evm', name, kind: 'evm', provider };
+}
+
+// The target sites are Solana-focused, so Phantom and friends count as wallets too.
+function solanaWallet(): DiscoveredWallet | null {
+  if (typeof window === 'undefined') return null;
+  const win = window as AnyWindow;
+  const provider = win.phantom?.solana ?? (win.solana?.isPhantom || win.solana?.connect ? win.solana : null);
+  if (!provider) return null;
+  return { id: 'solana', name: provider.isPhantom ? 'Phantom' : 'Solana wallet', kind: 'solana', provider };
+}
+
+function dedupe(wallets: DiscoveredWallet[]): DiscoveredWallet[] {
+  const seen = new Set<any>();
+  return wallets.filter((wallet) => {
+    if (seen.has(wallet.provider)) return false;
+    seen.add(wallet.provider);
+    return true;
+  });
+}
+
+function describeError(err: any): string {
+  const code = err?.code;
+  if (code === 4001 || /reject|denied|declined/i.test(err?.message || '')) {
+    return 'Connection request rejected in your wallet.';
+  }
+  if (code === -32002) {
+    // MetaMask keeps one request queued; further clicks fail until it is handled.
+    return 'Your wallet already has a connection request open — click the wallet extension in your toolbar to approve it.';
+  }
+  if (code === -32603) return 'Your wallet reported an internal error. Unlock it and try again.';
+  return err?.message || 'Could not connect wallet.';
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(
+        Object.assign(new Error('Your wallet did not respond. Open the extension from your toolbar — the approval popup may be hidden behind this window.'), {
+          code: 'TIMEOUT',
+        })
+      );
+    }, ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
+export function useWallet() {
+  const [wallet, setWallet] = useState<WalletState>(initialState);
+  const walletsRef = useRef<DiscoveredWallet[]>([]);
+
+  const publish = useCallback((wallets: DiscoveredWallet[]) => {
+    walletsRef.current = wallets;
+    setWallet((current) => ({ ...current, wallets, noProvider: wallets.length === 0 }));
+  }, []);
+
+  // Discover wallets. EIP-6963 is the modern path and is the only reliable way
+  // to see every injected wallet — with several installed they all fight over
+  // window.ethereum and only the last one to load wins.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const found = new Map<string, DiscoveredWallet>();
+
+    function onAnnounce(event: any) {
+      const { info, provider } = event.detail || {};
+      if (!info || !provider) return;
+      found.set(info.rdns || info.uuid, {
+        id: info.rdns || info.uuid,
+        name: info.name || 'Wallet',
+        icon: info.icon,
+        kind: 'evm',
+        provider,
+      });
+      publish(dedupe([...found.values(), ...[solanaWallet()].filter(Boolean) as DiscoveredWallet[]]));
+    }
+
+    window.addEventListener('eip6963:announceProvider', onAnnounce as EventListener);
+    window.dispatchEvent(new Event('eip6963:requestProvider'));
+
+    // Wallets that predate EIP-6963 only expose the globals.
+    const settle = setTimeout(() => {
+      const legacy = found.size === 0 ? [legacyEvm()] : [];
+      publish(dedupe([...found.values(), ...legacy, solanaWallet()].filter(Boolean) as DiscoveredWallet[]));
+    }, 350);
+
+    return () => {
+      window.removeEventListener('eip6963:announceProvider', onAnnounce as EventListener);
+      clearTimeout(settle);
+    };
+  }, [publish]);
+
+  // Restore an already-authorised session without prompting.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restore() {
+      for (const candidate of walletsRef.current) {
+        if (cancelled) return;
+        try {
+          if (candidate.kind === 'evm') {
+            const accounts = await candidate.provider.request({ method: 'eth_accounts' });
+            if (accounts?.length) {
+              const chainId = await candidate.provider.request({ method: 'eth_chainId' });
+              if (cancelled) return;
+              setWallet((current) => ({
+                ...current,
+                account: accounts[0],
+                chainId,
+                kind: 'evm',
+                walletName: candidate.name,
+                isConnected: true,
+                error: null,
+              }));
+              return;
+            }
+          } else if (candidate.provider.isConnected && candidate.provider.publicKey) {
+            setWallet((current) => ({
+              ...current,
+              account: candidate.provider.publicKey.toString(),
+              chainId: 'solana',
+              kind: 'solana',
+              walletName: candidate.name,
+              isConnected: true,
+              error: null,
+            }));
+            return;
+          }
+        } catch (err) {
+          /* try the next wallet */
+        }
+      }
+    }
+
+    if (wallet.wallets.length > 0 && !wallet.isConnected) restore();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wallet.wallets]);
+
+  const connectWith = useCallback(async (chosen: DiscoveredWallet) => {
+    setWallet((current) => ({ ...current, connecting: true, error: null, choosing: false }));
+    try {
+      if (chosen.kind === 'evm') {
+        const accounts = await withTimeout<string[]>(
+          chosen.provider.request({ method: 'eth_requestAccounts' }),
+          REQUEST_TIMEOUT_MS
+        );
+        const chainId = await chosen.provider.request({ method: 'eth_chainId' });
+        setWallet((current) => ({
+          ...current,
+          account: accounts[0] ?? null,
+          chainId,
+          kind: 'evm',
+          walletName: chosen.name,
+          connecting: false,
+          isConnected: Boolean(accounts[0]),
+          error: accounts[0] ? null : 'Wallet returned no account.',
+        }));
+
+        chosen.provider.on?.('accountsChanged', (next: string[]) =>
+          setWallet((current) => ({ ...current, account: next[0] || null, isConnected: next.length > 0 }))
+        );
+        chosen.provider.on?.('chainChanged', (next: string) => setWallet((current) => ({ ...current, chainId: next })));
+        return;
+      }
+
+      const response = await withTimeout<any>(chosen.provider.connect(), REQUEST_TIMEOUT_MS);
+      const account = (response?.publicKey ?? chosen.provider.publicKey)?.toString();
+      setWallet((current) => ({
+        ...current,
+        account: account ?? null,
+        chainId: 'solana',
+        kind: 'solana',
+        walletName: chosen.name,
+        connecting: false,
+        isConnected: Boolean(account),
+        error: account ? null : 'Wallet returned no account.',
+      }));
+    } catch (err: any) {
+      setWallet((current) => ({
+        ...current,
+        connecting: false,
+        isConnected: false,
+        error: describeError(err),
+      }));
+    }
+  }, []);
+
+  /**
+   * Connects when exactly one wallet is injected. With several, the caller is
+   * expected to show `wallet.wallets` and call `connectWith` for the choice.
+   */
+  const connect = useCallback(async () => {
+    const wallets = walletsRef.current;
+
+    if (wallets.length === 0) {
+      setWallet((current) => ({
+        ...current,
+        noProvider: true,
+        error: 'No browser wallet detected. Install MetaMask or Phantom, then reload this page.',
+      }));
+      return;
+    }
+
+    if (wallets.length === 1) {
+      await connectWith(wallets[0]);
+      return;
+    }
+
+    // Surface the picker rather than guessing which wallet the user wants.
+    setWallet((current) => ({ ...current, choosing: true, error: null }));
+  }, [connectWith]);
+
+  const dismissError = useCallback(() => {
+    setWallet((current) => ({ ...current, error: null }));
+  }, []);
+
+  const cancelChoosing = useCallback(() => {
+    setWallet((current) => ({ ...current, choosing: false }));
+  }, []);
+
+  return { wallet, connect, connectWith, dismissError, cancelChoosing };
+}

@@ -1,0 +1,14 @@
+{
+  "name": "apps-extension",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "vite build --mode content-script && vite build --mode background && vite build --mode popup",
+    "dev": "npm run build"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vite": "^8.2.1"
+  }
+}
