@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { apiUrl, fetchJson } from './api';
+import { fetchJson } from './api';
 
 const GUEST_KEY = 'token-chat:guest-id';
 const NAME_KEY = 'token-chat:display-name';
@@ -87,16 +87,14 @@ export function useProfile(walletAccount?: string) {
       setSaving(true);
       setError(null);
       try {
-        const res = await fetch(apiUrl(`/api/identities/${encodeURIComponent(identityId)}`), {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ displayName: trimmed, walletAddress: walletAccount || null }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          setError(data.error || `Could not save your name (HTTP ${res.status}).`);
-          return false;
-        }
+        const data = await fetchJson<{ displayName: string }>(
+          `/api/identities/${encodeURIComponent(identityId)}`,
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ displayName: trimmed, walletAddress: walletAccount || null }),
+          }
+        );
         setDisplayName(data.displayName);
         try {
           window.localStorage.setItem(NAME_KEY, data.displayName);
@@ -104,8 +102,8 @@ export function useProfile(walletAccount?: string) {
           /* storage unavailable */
         }
         return true;
-      } catch (err) {
-        setError('Network error — your name was not saved.');
+      } catch (err: any) {
+        setError(err?.message || 'Network error — your name was not saved.');
         return false;
       } finally {
         setSaving(false);

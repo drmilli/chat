@@ -35,10 +35,17 @@ app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '8mb' }));
 
 // The extension popup runs on a chrome-extension:// origin, so it needs CORS
 // headers to reach this API directly (the web app goes through the Vite proxy).
+// Keep this in step with the verbs the routes actually expose. PUT was missing
+// here while /api/identities/:id used it, so renaming failed the preflight and
+// surfaced in the UI as an unexplained "network error".
+const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
+
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Methods', ALLOWED_METHODS.join(', '));
+  // Avoid a preflight before every single write.
+  res.header('Access-Control-Max-Age', '86400');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
