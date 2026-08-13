@@ -299,6 +299,15 @@ export function ChatPage({
     setSendError(null);
   }
 
+  useEffect(() => {
+    if (!renaming) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setRenaming(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [renaming]);
+
   // Clicking a quote scrolls its original into view and flashes it, so a reply
   // to something far up the history is still findable.
   function jumpToMessage(messageId?: number) {

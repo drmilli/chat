@@ -231,6 +231,7 @@ body {
   grid-template-columns: 316px minmax(0, 1fr);
   gap: 16px;
   height: calc(100vh - 130px);
+  height: calc(100dvh - 130px);
   min-height: 520px;
 }
 
@@ -570,6 +571,11 @@ body {
 }
 
 .tg-name-btn:hover { background: #fff; border-color: var(--stroke-ink); color: var(--text); }
+
+@media (max-width: 768px) {
+  /* Real control, so give it a real touch target. */
+  .tg-name-btn { min-height: 34px; padding: 4px 10px; }
+}
 .tg-name-btn span { opacity: 0.6; font-size: 0.9em; }
 
 /* No room for the keyboard hint in the narrow widget. */
@@ -610,6 +616,10 @@ body {
   min-width: 90px;
   cursor: pointer;
 }
+
+/* Without this the "unavailable" label rendered over the bars. */
+.voice.error .voice-track { gap: 0; font-size: 0.74rem; color: var(--muted); }
+.voice.error .voice-bar { display: none; }
 
 .voice-bar {
   flex: 1;
@@ -695,7 +705,8 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  max-height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
   background: rgba(245, 246, 249, 0.96);
   border: 1px solid var(--stroke-ink);
   border-radius: 22px;
@@ -912,4 +923,65 @@ body {
   .tg { grid-template-columns: 1fr; height: auto; }
   .tg-sidebar { display: none; }
   .tg-main { height: calc(100vh - 150px); }
+}
+
+
+/* =========================================================
+   Mobile
+   Measured on 375/390/412px: chat bubbles were squeezed into ~55% of the
+   screen, tap targets sat at 20px tall (below the 24px WCAG floor), and
+   several labels rendered at 10px.
+   ========================================================= */
+
+@media (max-width: 768px) {
+  /* Touch devices have no hover, so the per-message action column only stole
+     horizontal space from the bubble. */
+  .tg-actions { display: none; }
+
+  .tg-row { max-width: 92%; gap: 6px; }
+  .tg-avatar-slot { width: 26px; }
+  .avatar-sm { width: 26px; height: 26px; font-size: 0.62rem; }
+  .tg-bubble { min-width: 0; padding: 8px 11px 7px; }
+  .tg-text { font-size: 0.94rem; }
+
+  /* "Enter to send" is meaningless on a phone keyboard. */
+  .tg-hint { display: none; }
+  .tg-identity { font-size: 0.75rem; }
+
+  .tg-feed { padding: 12px 12px 6px; }
+  .tg-composer { padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
+  .tg-header { padding: 10px 12px; }
+  .tg-header-title { font-size: 0.95rem; }
+  .tg-header-sub { font-size: 0.72rem; }
+  /* The app bar already offers Connect wallet; repeating it here squeezed the
+     room title onto two lines. */
+  .tg-header .btn { display: none; }
+
+  .card { padding: 18px; border-radius: var(--r-lg); }
+  .modal { padding: 20px; border-radius: var(--r-lg); }
+
+  /* Legibility floor. */
+  .stat-label { font-size: 0.72rem; }
+  .eyebrow { font-size: 0.72rem; letter-spacing: 0.2em; }
+  .item-meta, .activity-preview, .tg-room-sub { font-size: 0.78rem; }
+
+  /* Comfortable touch targets (WCAG 2.5.8 asks for 24px; 44px is the iOS
+     guideline). Inline text links get padding instead of a fixed height. */
+  .btn, .tg-send, .voice-cancel, .icon-btn, .switch { min-height: 44px; }
+  .btn { padding: 12px 20px; }
+  .icon-btn { width: 44px; height: 44px; }
+  .tg-send { width: 46px; height: 46px; }
+  .tg-action { width: 34px; height: 34px; }
+  .voice-play { width: 38px; height: 38px; }
+  .adm-row { padding: 14px; }
+  .activity-item { padding: 14px; }
+
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-split { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 420px) {
+  .tg-row { max-width: 96%; }
+  .stat-value { font-size: 1.5rem; }
+  .modal { padding: 16px; }
 }

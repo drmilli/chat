@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { BrowserRouter, Routes, Route, useParams, Navigate, NavLink, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useParams, Navigate, NavLink, Link, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowUpRight, Link2, Mic, ShieldCheck, Wallet } from 'lucide-react';
 import { ChatPage, fetchJson } from '@token-chat/ui';
@@ -12,6 +12,38 @@ import { useWallet, WalletState } from './hooks/useWallet';
 import { isValidCA, normalizeCA } from './utils/ca';
 
 type PromptMode = 'room' | 'embed';
+
+/**
+ * react-router changes the URL but never scrolls to a `#hash` target, so links
+ * like `/#activity` silently did nothing. This also handles arriving from
+ * another route, where the section has not mounted on the first frame.
+ */
+function ScrollToHash() {
+  const { pathname, hash } = useLocation();
+
+  useEffect(() => {
+    if (!hash) {
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    const id = decodeURIComponent(hash.slice(1));
+    let frame = 0;
+    let attempts = 0;
+    const scroll = () => {
+      const target = document.getElementById(id);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      // Coming from another route the section may not be painted yet.
+      if (attempts++ < 30) frame = requestAnimationFrame(scroll);
+    };
+    frame = requestAnimationFrame(scroll);
+    return () => cancelAnimationFrame(frame);
+  }, [pathname, hash]);
+
+  return null;
+}
 
 function shortAddress(value: string) {
   return `${value.slice(0, 6)}…${value.slice(-4)}`;
@@ -38,7 +70,7 @@ function Topbar({
         <img src="/logo.svg" alt="" width={38} height={38} className="rounded-[22%]" />
         <span className="flex flex-col leading-none">
           <span className="text-[15px] font-normal text-[rgba(30,50,90,0.95)] tracking-tight">Token Chat</span>
-          <span className="text-[10px] uppercase tracking-[0.22em] text-[rgba(30,50,90,0.5)] mt-1">Contract rooms</span>
+          <span className="text-[11px] uppercase tracking-[0.2em] text-[rgba(30,50,90,0.5)] mt-1">Contract rooms</span>
         </span>
       </Link>
 
@@ -48,7 +80,7 @@ function Topbar({
             <NavLink
               to="/rooms"
               className={({ isActive }) =>
-                `no-underline transition-opacity hover:opacity-70 ${
+                `no-underline transition-opacity hover:opacity-70 inline-flex items-center min-h-[44px] px-1 ${
                   isActive ? 'text-[rgba(30,50,90,0.95)]' : 'text-[rgba(30,50,90,0.6)]'
                 }`
               }
@@ -60,7 +92,7 @@ function Topbar({
             <button
               type="button"
               onClick={() => openContractPrompt('room')}
-              className="bg-transparent border-0 p-0 cursor-pointer text-sm font-normal text-[rgba(30,50,90,0.6)] hover:opacity-70 transition-opacity"
+              className="bg-transparent border-0 px-1 min-h-[44px] cursor-pointer text-sm font-normal text-[rgba(30,50,90,0.6)] hover:opacity-70 transition-opacity"
             >
               Open room
             </button>
@@ -72,7 +104,7 @@ function Topbar({
           whileTap={{ scale: 0.98 }}
           onClick={connect}
           title={wallet.error || undefined}
-          className="flex items-center bg-[rgba(30,50,90,0.8)] text-white rounded-full pl-2 pr-4 md:pr-6 py-1.5 md:py-2 gap-2 md:gap-3 hover:bg-[rgba(30,50,90,1)] transition-colors border-0 cursor-pointer"
+          className="flex items-center bg-[rgba(30,50,90,0.8)] text-white rounded-full pl-2 pr-4 md:pr-6 py-2.5 md:py-2 gap-2 md:gap-3 hover:bg-[rgba(30,50,90,1)] transition-colors border-0 cursor-pointer"
         >
           <div className="bg-white/20 p-1 md:p-1.5 rounded-full flex items-center justify-center">
             <ArrowUpRight className="w-4 h-4 md:w-5 md:h-5 text-white" />
@@ -191,7 +223,7 @@ function Landing({
       />
 
       <div className="mx-auto w-full max-w-[1536px] px-3 md:px-5 pb-16 flex flex-col gap-4 md:gap-5">
-        <section className="grid gap-4 md:gap-5 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+        <section id="features" className="grid gap-4 md:gap-5 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 scroll-mt-6">
           {FEATURES.map(({ Icon, title, body }) => (
             <div
               key={title}
@@ -208,7 +240,7 @@ function Landing({
 
         <section
           id="extension"
-          className="rounded-[1.5rem] md:rounded-[3rem] bg-white/60 backdrop-blur-xl border border-white/60 p-7 md:p-10 flex flex-col gap-4"
+          className="scroll-mt-6 rounded-[1.5rem] md:rounded-[3rem] bg-white/60 backdrop-blur-xl border border-white/60 p-7 md:p-10 flex flex-col gap-4"
         >
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
@@ -228,7 +260,7 @@ function Landing({
           </p>
         </section>
 
-        <div id="activity">
+        <div id="activity" className="scroll-mt-6">
           <ActivityFeed />
         </div>
 
@@ -261,6 +293,19 @@ export function App() {
     setPromptError(null);
   }
 
+  // Escape is the expected way out of a dialog; without it the backdrop stayed
+  // up and swallowed clicks on the page behind.
+  useEffect(() => {
+    if (!promptMode && !wallet.choosing) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      if (promptMode) closeContractPrompt();
+      if (wallet.choosing) cancelChoosing();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [promptMode, wallet.choosing, cancelChoosing]);
+
   function closeContractPrompt() {
     setPromptMode(null);
     setPromptError(null);
@@ -286,6 +331,7 @@ export function App() {
   return (
     <>
       <BrowserRouter>
+        <ScrollToHash />
         <Routes>
           {/* The embed renders bare — it lives inside the extension's widget iframe. */}
           <Route path="/embed/:ca" element={<EmbedRoute wallet={wallet} connect={connect} />} />

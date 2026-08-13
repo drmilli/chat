@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, Boxes, MessagesSquare, Radio } from 'lucide-react';
+import { ContractAddress } from './ContractAddress';
 
 export type FooterStats = {
   rooms: number;
@@ -38,7 +39,7 @@ export function Footer({ stats, onOpenRoom }: { stats: FooterStats; onOpenRoom: 
             <img src="/logo.svg" alt="" width={40} height={40} className="rounded-[22%]" />
             <span className="flex flex-col leading-none">
               <span className="text-[17px] text-[rgba(30,50,90,0.95)] tracking-tight">Token Chat</span>
-              <span className="text-[10px] uppercase tracking-[0.22em] text-[rgba(30,50,90,0.5)] mt-1.5">
+              <span className="text-[11px] uppercase tracking-[0.2em] text-[rgba(30,50,90,0.5)] mt-1.5">
                 Contract rooms
               </span>
             </span>
@@ -58,28 +59,32 @@ export function Footer({ stats, onOpenRoom }: { stats: FooterStats; onOpenRoom: 
 
         <nav className="flex flex-col gap-3">
           <span className="text-[11px] uppercase tracking-[0.24em] text-[rgba(30,50,90,0.45)]">Product</span>
-          <Link to="/rooms" className="text-[14px] text-[rgba(30,50,90,0.7)] no-underline hover:text-[rgba(30,50,90,1)] transition-colors w-fit">
+          <Link to="/rooms" className="text-[14px] text-[rgba(30,50,90,0.7)] no-underline hover:text-[rgba(30,50,90,1)] transition-colors w-fit py-1.5">
             Browse rooms
           </Link>
           <button
             type="button"
             onClick={onOpenRoom}
-            className="text-[14px] text-[rgba(30,50,90,0.7)] hover:text-[rgba(30,50,90,1)] transition-colors bg-transparent border-0 p-0 cursor-pointer text-left w-fit"
+            className="text-[14px] text-[rgba(30,50,90,0.7)] hover:text-[rgba(30,50,90,1)] transition-colors bg-transparent border-0 py-1.5 cursor-pointer text-left w-fit"
           >
             Open by contract address
           </button>
-          <a href="#activity" className="text-[14px] text-[rgba(30,50,90,0.7)] no-underline hover:text-[rgba(30,50,90,1)] transition-colors w-fit">
+          <Link to="/#activity" className="text-[14px] text-[rgba(30,50,90,0.7)] no-underline hover:text-[rgba(30,50,90,1)] transition-colors w-fit py-1.5">
             Live activity
-          </a>
+          </Link>
         </nav>
 
         <nav className="flex flex-col gap-3">
           <span className="text-[11px] uppercase tracking-[0.24em] text-[rgba(30,50,90,0.45)]">Extension</span>
-          <a href="#extension" className="text-[14px] text-[rgba(30,50,90,0.7)] no-underline hover:text-[rgba(30,50,90,1)] transition-colors w-fit">
+          <Link to="/#extension" className="text-[14px] text-[rgba(30,50,90,0.7)] no-underline hover:text-[rgba(30,50,90,1)] transition-colors w-fit py-1.5">
             How detection works
-          </a>
-          <span className="text-[14px] text-[rgba(30,50,90,0.7)]">Floating chat widget</span>
-          <span className="text-[14px] text-[rgba(30,50,90,0.7)]">Voice messages</span>
+          </Link>
+          <Link to="/#extension" className="text-[14px] text-[rgba(30,50,90,0.7)] no-underline hover:text-[rgba(30,50,90,1)] transition-colors w-fit py-1.5">
+            Floating chat widget
+          </Link>
+          <Link to="/#features" className="text-[14px] text-[rgba(30,50,90,0.7)] no-underline hover:text-[rgba(30,50,90,1)] transition-colors w-fit py-1.5">
+            Voice messages
+          </Link>
         </nav>
 
         <div className="flex flex-col gap-4">
@@ -109,7 +114,10 @@ export function Footer({ stats, onOpenRoom }: { stats: FooterStats; onOpenRoom: 
       </div>
 
       <div className="mt-10 pt-6 border-t border-[rgba(30,50,90,0.1)] flex items-center justify-between gap-4 flex-wrap">
-        <span className="text-[13px] text-[rgba(30,50,90,0.5)]">© {year} Token Chat</span>
+        <div className="flex items-center gap-4 flex-wrap">
+          <span className="text-[13px] text-[rgba(30,50,90,0.5)]">© {year} Token Chat</span>
+          <ContractAddress />
+        </div>
         <span className="text-[13px] text-[rgba(30,50,90,0.5)]">
           EVM addresses are lowercased · Solana addresses keep their case
         </span>

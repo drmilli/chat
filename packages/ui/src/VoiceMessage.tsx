@@ -99,7 +99,7 @@ export function VoiceMessage({
   const remaining = total > 0 ? Math.max(0, total - position) : (durationMs || 0) / 1000;
 
   return (
-    <div className={`voice${own ? ' own' : ''}`}>
+    <div className={`voice${own ? ' own' : ''}${error ? ' error' : ''}`}>
       <audio ref={audioRef} src={src} preload="metadata" />
 
       <button

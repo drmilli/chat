@@ -4,6 +4,7 @@ import { Navbar } from './Navbar';
 import { HeroBadge } from './HeroBadge';
 import { BottomLeftCard } from './BottomLeftCard';
 import { BottomRightCorner } from './BottomRightCorner';
+import { ContractAddress } from './ContractAddress';
 
 const VIDEO_SRC =
   'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260428_193507_4286c423-2fd9-4efd-92bd-91a939453fc1.mp4';
@@ -110,6 +111,15 @@ export function Hero({
               Paste a contract address to open its chat room, connect your wallet, send voice notes — the same room the
               extension opens on the chart.
             </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.6 }}
+              className="mt-5"
+            >
+              <ContractAddress />
+            </motion.div>
           </div>
 
           <BottomLeftCard rooms={rooms} />
