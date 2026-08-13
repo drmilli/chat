@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ChatMessage } from './ChatHistory';
 import { shortId } from './identity';
 import { formatDuration, isRecordingSupported, useVoiceRecorder } from './useVoiceRecorder';
-import { apiUrl } from './api';
+import { apiUrl, fetchJson, ApiError } from './api';
 
 const MAX_VOICE_MS = 2 * 60 * 1000;
 
@@ -73,7 +73,7 @@ export function ChatComposer({
   async function post(body: Record<string, unknown>) {
     setSubmitting(true);
     try {
-      const response = await fetch(apiUrl(`/api/rooms/${contractAddress}/messages`), {
+      const data = await fetchJson<{ message: ChatMessage }>(`/api/rooms/${contractAddress}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -83,16 +83,15 @@ export function ChatComposer({
           ...body,
         }),
       });
-      const data = await response.json().catch(() => ({}));
-      if (response.ok && data.message) {
+      if (data.message) {
         onSent(data.message);
         onCancelReply?.();
         return true;
       }
-      onError?.(data.error || `Message could not be sent (HTTP ${response.status}).`);
+      onError?.('Message could not be sent.');
       return false;
     } catch (err) {
-      onError?.('Network error — message not sent.');
+      onError?.(err instanceof ApiError ? err.message : 'Network error — message not sent.');
       return false;
     } finally {
       setSubmitting(false);

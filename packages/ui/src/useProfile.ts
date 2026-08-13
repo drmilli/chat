@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { apiUrl } from './api';
+import { apiUrl, fetchJson } from './api';
 
 const GUEST_KEY = 'token-chat:guest-id';
 const NAME_KEY = 'token-chat:display-name';
@@ -54,8 +54,7 @@ export function useProfile(walletAccount?: string) {
   // another device should win over whatever this browser cached.
   useEffect(() => {
     let cancelled = false;
-    fetch(apiUrl(`/api/identities/${encodeURIComponent(identityId)}`))
-      .then((res) => (res.ok ? res.json() : null))
+    fetchJson<{ displayName: string | null }>(`/api/identities/${encodeURIComponent(identityId)}`)
       .then((data) => {
         if (cancelled || !data) return;
         if (data.displayName) {

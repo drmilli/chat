@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { apiUrl } from '@token-chat/ui';
+import { apiUrl, fetchJson } from '@token-chat/ui';
 
 type Ban = {
   id: number;
@@ -39,12 +39,14 @@ export function AdminPanel() {
     async function load() {
       setLoading(true);
       try {
-        const [bansRes, patternsRes] = await Promise.all([fetch(apiUrl('/api/bans')), fetch(apiUrl('/api/admin/blocklist'))]);
-        const [bansData, patternsData] = await Promise.all([bansRes.json(), patternsRes.json()]);
+        const [bansData, patternsData] = await Promise.all([
+          fetchJson<{ bans: Ban[] }>('/api/bans'),
+          fetchJson<{ patterns: BlocklistPattern[] }>('/api/admin/blocklist'),
+        ]);
         setBans(bansData.bans || []);
         setPatterns(patternsData.patterns || []);
-      } catch (err) {
-        setError('Could not reach the moderation API.');
+      } catch (err: any) {
+        setError(err?.message || 'Could not reach the moderation API.');
       } finally {
         setLoading(false);
       }

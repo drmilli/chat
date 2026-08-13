@@ -4,7 +4,7 @@ import { ChatComposer } from './ChatComposer';
 import { ChatHistory, ChatMessage } from './ChatHistory';
 import { avatarGradient, initials, shortId } from './identity';
 import { MAX_NAME_LENGTH, useProfile } from './useProfile';
-import { apiUrl } from './api';
+import { apiUrl, fetchJson } from './api';
 
 const erc20Abi = [
   'function name() view returns (string)',
@@ -98,9 +98,7 @@ export function ChatPage({
     async ({ initial }: { initial: boolean }) => {
       if (initial) setLoading(true);
       try {
-        const res = await fetch(apiUrl(`/api/rooms/${contractAddress}/messages?limit=50`));
-        if (!res.ok) throw new Error(`API responded ${res.status}`);
-        const data = await res.json();
+        const data = await fetchJson<{ messages: ChatMessage[] }>(`/api/rooms/${contractAddress}/messages?limit=50`);
         setMessages(byOldestFirst(data.messages || []));
         setLoadError(null);
       } catch (err: any) {
@@ -218,11 +216,7 @@ export function ChatPage({
   useEffect(() => {
     if (embedMode) return;
     let cancelled = false;
-    fetch(apiUrl('/api/rooms?limit=25'))
-      .then((res) => {
-        if (!res.ok) throw new Error(`rooms list unavailable (HTTP ${res.status})`);
-        return res.json();
-      })
+    fetchJson<{ rooms: RoomSummary[] }>('/api/rooms?limit=25')
       .then((data) => {
         if (!cancelled) {
           setRooms(data.rooms || []);
@@ -484,7 +478,7 @@ export function ChatPage({
         <div className="tg-rooms scroll-y">
           {roomsError ? (
             <p style={{ padding: 12, fontSize: '0.8rem', margin: 0, color: 'var(--danger)' }}>
-              Could not load the room list — {roomsError}.
+              Could not load the room list — {roomsError}
             </p>
           ) : filteredRooms.length === 0 ? (
             <p className="muted" style={{ padding: 12, fontSize: '0.82rem', margin: 0 }}>

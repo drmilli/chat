@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { avatarGradient, apiUrl, initials, shortId } from '@token-chat/ui';
+import { avatarGradient, fetchJson, initials, shortId } from '@token-chat/ui';
 
 type ActivityEvent = {
   kind: 'message' | 'room_created';
@@ -32,15 +32,7 @@ export function ActivityFeed({ limit = 12 }: { limit?: number }) {
 
     async function load() {
       try {
-        const res = await fetch(apiUrl(`/api/activity?limit=${limit}`));
-        if (!res.ok) {
-          throw new Error(
-            res.status === 404
-              ? 'Activity API not found — the backend is running an older build.'
-              : `Activity unavailable (HTTP ${res.status}).`
-          );
-        }
-        const data = await res.json();
+        const data = await fetchJson<{ events: ActivityEvent[] }>(`/api/activity?limit=${limit}`);
         if (cancelled) return;
         setEvents(data.events || []);
         setError(null);

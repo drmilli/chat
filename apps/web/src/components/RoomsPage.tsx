@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { avatarGradient, apiUrl, initials, shortId } from '@token-chat/ui';
+import { avatarGradient, fetchJson, initials, shortId } from '@token-chat/ui';
 
 type RoomSummary = {
   id: string;
@@ -41,18 +41,10 @@ export function RoomsPage() {
 
     async function load() {
       try {
-        const [roomsRes, statsRes] = await Promise.all([fetch(apiUrl('/api/rooms?limit=25')), fetch(apiUrl('/api/rooms/stats'))]);
-        const failed = [roomsRes, statsRes].find((res) => !res.ok);
-        if (failed) {
-          // A 404 here almost always means the API process predates these routes.
-          throw new Error(
-            failed.status === 404
-              ? 'The rooms API returned 404 — the backend is running an older build. Restart it and reload.'
-              : `Unable to load rooms (HTTP ${failed.status}).`
-          );
-        }
-        const roomsBody = await roomsRes.json();
-        const statsBody = await statsRes.json();
+        const [roomsBody, statsBody] = await Promise.all([
+          fetchJson<{ rooms: RoomSummary[] }>('/api/rooms?limit=25'),
+          fetchJson<Stats>('/api/rooms/stats'),
+        ]);
         if (cancelled) return;
         setRooms(roomsBody.rooms || []);
         setStats(statsBody);
