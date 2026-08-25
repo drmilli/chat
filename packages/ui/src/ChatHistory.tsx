@@ -14,6 +14,8 @@ export type ChatMessage = {
   replyToKind?: 'text' | 'voice' | null;
   displayName?: string | null;
   replyToDisplayName?: string | null;
+  /** Wallet ownership proved by signature. */
+  verified?: boolean;
   pending?: boolean;
   kind?: 'text' | 'voice';
   audioUrl?: string | null;
@@ -128,6 +130,11 @@ export function ChatHistory({
                 {!own && !grouped ? (
                   <span className="tg-sender" style={{ color: senderColor(message.identity_id) }}>
                     {message.displayName || shortId(message.identity_id)}
+                    {message.verified ? (
+                      <span className="tg-verified" title="Wallet ownership verified by signature" aria-label="Verified wallet">
+                        ✓
+                      </span>
+                    ) : null}
                   </span>
                 ) : null}
 

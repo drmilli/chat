@@ -2,10 +2,9 @@
   "manifest_version": 3,
   "name": "Token Chat Extension",
   "version": "0.1.0",
-  "description": "Inject a token chat widget into target token pages.",
+  "description": "Adds a chat room to every token page you visit on GMGN, Axiom and Padre \u2014 one shared room per contract address, with voice notes and wallet-verified identity.",
   "permissions": [
-    "storage",
-    "tabs"
+    "storage"
   ],
   "host_permissions": [
     "https://gmgn.ai/*",

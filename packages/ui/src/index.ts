@@ -8,3 +8,6 @@ export { useVoiceRecorder, isRecordingSupported, formatDuration } from './useVoi
 export type { ChatMessage } from './ChatHistory';
 export { avatarGradient, initials, senderColor, shortId, formatTime, dayLabel } from './identity';
 export { apiUrl, fetchJson, resolveMediaUrl, ApiError, API_BASE } from './api';
+export { ensureSession, signInWithWallet, fetchIdentity, clearSession, getToken } from './session';
+export type { SessionIdentity } from './session';
+export { readHostContext, postToHost, onHostMessage, WIDGET_PROTOCOL } from './embedBridge';

@@ -65,6 +65,8 @@ async function loadDetection(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentTabId = tab?.id ?? null;
 
+  // Without the `tabs` permission, tab.url is only exposed for hosts this
+  // extension has permission for — which is exactly the set we can detect on.
   const hostname = tab?.url ? safeHostname(tab.url) : '';
   detectedSite.textContent = hostname ? siteLabel(hostname) : '';
 

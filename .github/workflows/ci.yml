@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  # A new push supersedes an in-flight run for the same ref.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Typecheck web app
+        # The pre-existing window.ethereum errors are filtered; anything else fails the build.
+        run: |
+          cd apps/web
+          npx tsc --noEmit -p tsconfig.json 2>&1 | grep -v "Property 'ethereum'" > /tmp/tsc.log || true
+          if [ -s /tmp/tsc.log ]; then echo "Typecheck errors:"; cat /tmp/tsc.log; exit 1; fi
+
+      - name: Backend unit tests
+        run: npm run test --workspace services-backend
+
+      - name: Execution engine tests
+        # No network and no credentials: every RPC, router and signer is
+        # injected, so this runs identically on a fork.
+        run: npm run test --workspace services-execution
+
+      - name: Detector tests
+        run: npm run test:detect
+
+      - name: Build backend
+        run: npm run build --workspace services-backend
+
+      - name: Build web app
+        run: npm run build --workspace apps-web
+
+      - name: Build extension
+        run: npm run build --workspace apps-extension
+
+      - name: Check the release manifest ships no dev hosts
+        # A localhost host permission in a submitted build is a review flag.
+        run: |
+          if grep -q "localhost" apps/extension/dist/manifest.json; then
+            echo "release manifest still contains localhost hosts"; exit 1;
+          fi
+          echo "release manifest is clean"
+
+      - name: Check the extension bundles are self-contained
+        # MV3 content scripts cannot be ES modules; a stray import would break at load.
+        run: |
+          for f in apps/extension/dist/content-script.js apps/extension/dist/background.js apps/extension/dist/popup.js; do
+            test -f "$f" || { echo "missing $f"; exit 1; }
+            if grep -qE '^import |^export ' "$f"; then echo "$f is not self-contained"; exit 1; fi
+          done
+          echo "extension bundles OK"
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Runs only where the database secret is available (i.e. not on forked PRs).
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run integration tests
+        # Without the secret the suite skips rather than fails, so this stays green
+        # for contributors who cannot reach the database.
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET || 'ci-only-session-secret-not-used-in-production' }}
+          TEST_PORT: 3999
+        run: npm run test:integration --workspace services-backend

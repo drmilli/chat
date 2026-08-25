@@ -5,6 +5,7 @@ import { ChatHistory, ChatMessage } from './ChatHistory';
 import { avatarGradient, initials, shortId } from './identity';
 import { MAX_NAME_LENGTH, useProfile } from './useProfile';
 import { apiUrl, fetchJson } from './api';
+import { readHostContext, postToHost } from './embedBridge';
 
 const erc20Abi = [
   'function name() view returns (string)',
@@ -231,14 +232,15 @@ export function ChatPage({
     };
   }, [embedMode, contractAddress]);
 
+  // The host origin is declared by the extension when it injects the iframe.
+  const hostContext = useMemo(() => readHostContext(), []);
+
   // Ask the host page to resize the widget iframe when the embed expands.
+  // Posted to that one origin only — never '*'.
   useEffect(() => {
-    if (!embedMode || typeof window === 'undefined' || window.parent === window) return;
-    window.parent.postMessage(
-      { type: 'token-chat:resize', height: expanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT },
-      '*'
-    );
-  }, [embedMode, expanded]);
+    if (!embedMode) return;
+    postToHost(hostContext, 'resize', { height: expanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT });
+  }, [embedMode, expanded, hostContext]);
 
   useEffect(() => {
     async function detectToken() {

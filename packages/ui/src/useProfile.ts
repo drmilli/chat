@@ -1,29 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fetchJson } from './api';
+import { ensureSession, fetchIdentity } from './session';
 
-const GUEST_KEY = 'token-chat:guest-id';
 const NAME_KEY = 'token-chat:display-name';
 
 export const MAX_NAME_LENGTH = 32;
-
-/**
- * Before this existed every signed-out user posted as the literal string
- * "anonymous" — one shared identity, so nobody could be told apart and a ban on
- * it would have hit everyone. Each browser now gets its own stable guest id.
- */
-function readGuestId(): string {
-  if (typeof window === 'undefined') return 'guest';
-  try {
-    const existing = window.localStorage.getItem(GUEST_KEY);
-    if (existing) return existing;
-    const created = `guest-${Math.random().toString(36).slice(2, 10)}`;
-    window.localStorage.setItem(GUEST_KEY, created);
-    return created;
-  } catch (err) {
-    // Private mode with storage disabled — fall back to the shared identity.
-    return 'anonymous';
-  }
-}
 
 function readStoredName(): string | null {
   if (typeof window === 'undefined') return null;
@@ -43,34 +24,41 @@ export type Profile = {
 };
 
 export function useProfile(walletAccount?: string) {
-  const [guestId] = useState(readGuestId);
-  const identityId = walletAccount || guestId;
-
+  // The identity now comes from a server-issued session. It used to be a
+  // client-invented `guest-xxxx` string, which the API accepted on trust.
+  const [identityId, setIdentityId] = useState<string>('');
   const [displayName, setDisplayName] = useState<string | null>(readStoredName);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // The server is the source of truth once an identity exists — a name set on
-  // another device should win over whatever this browser cached.
   useEffect(() => {
     let cancelled = false;
-    fetchJson<{ displayName: string | null }>(`/api/identities/${encodeURIComponent(identityId)}`)
-      .then((data) => {
-        if (cancelled || !data) return;
-        if (data.displayName) {
-          setDisplayName(data.displayName);
+
+    async function bootstrap() {
+      try {
+        await ensureSession();
+        const identity = await fetchIdentity();
+        if (cancelled || !identity) return;
+        setIdentityId(identity.id);
+        if (identity.displayName) {
+          setDisplayName(identity.displayName);
           try {
-            window.localStorage.setItem(NAME_KEY, data.displayName);
+            window.localStorage.setItem(NAME_KEY, identity.displayName);
           } catch (err) {
             /* storage unavailable */
           }
         }
-      })
-      .catch(() => undefined);
+      } catch (err) {
+        if (!cancelled) setError('Could not start a session — messages cannot be sent.');
+      }
+    }
+
+    bootstrap();
     return () => {
       cancelled = true;
     };
-  }, [identityId]);
+    // Re-runs when the wallet connects, so the session upgrade is picked up.
+  }, [walletAccount]);
 
   const saveName = useCallback(
     async (nextName: string): Promise<boolean> => {

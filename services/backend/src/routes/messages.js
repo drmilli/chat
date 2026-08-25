@@ -1,6 +1,8 @@
+const crypto = require('crypto');
 const express = require('express');
 const { query } = require('../db');
 const hub = require('../realtime/hub');
+const { requireSession } = require('../auth/sessions');
 const {
   contentMatchesBlockedPatterns,
   fetchActiveBlocklistPatterns,
@@ -150,7 +152,9 @@ router.get('/:id/messages', async (req, res, next) => {
     const result = await query(
       `SELECT m.id, m.room_id, m.identity_id, m.content, m.created_at, m.kind, m.audio_mime, m.duration_ms,
               (m.audio IS NOT NULL) AS has_audio,
+              m.audio_token,
               author.display_name AS display_name,
+              author.verified     AS author_verified,
               m.reply_to_id,
               parent.identity_id AS reply_to_identity,
               parent.kind        AS reply_to_kind,
@@ -169,12 +173,13 @@ router.get('/:id/messages', async (req, res, next) => {
       roomId,
       messages: result.rows.map((row) => ({
         ...row,
-        audioUrl: row.has_audio ? `/api/messages/${row.id}/audio` : null,
+        audioUrl: row.has_audio ? `/api/messages/${row.id}/audio?t=${row.audio_token}` : null,
         replyToId: row.reply_to_id,
         replyToIdentity: row.reply_to_identity,
         replyToKind: row.reply_to_kind,
         replyToPreview: row.reply_to_preview,
         displayName: row.display_name,
+        verified: Boolean(row.author_verified),
         replyToDisplayName: row.reply_to_display_name,
       })),
     });
@@ -183,14 +188,15 @@ router.get('/:id/messages', async (req, res, next) => {
   }
 });
 
-router.post('/:id/messages', async (req, res, next) => {
+router.post('/:id/messages', requireSession, async (req, res, next) => {
   const roomId = req.params.id;
-  const { identityId, walletAddress, content, kind, audioBase64, audioMime, durationMs, replyToId } = req.body;
+  const { content, kind, audioBase64, audioMime, durationMs, replyToId } = req.body;
+  // Authorship is taken from the signed session. Accepting req.body.identityId
+  // let anyone post as any wallet address.
+  const identityId = req.session.sub;
+  const walletAddress = req.session.address || null;
   const isVoice = kind === 'voice';
 
-  if (!identityId) {
-    return res.status(400).json({ error: 'identityId is required' });
-  }
   if (!isVoice && !content) {
     return res.status(400).json({ error: 'content is required' });
   }
@@ -241,8 +247,9 @@ router.post('/:id/messages', async (req, res, next) => {
       'INSERT INTO identities (id, wallet_address, verified, created_at) VALUES ($1, $2, $3, NOW()) ON CONFLICT (id) DO NOTHING',
       [identityId, walletAddress || null, false]
     );
-    const authorResult = await query('SELECT display_name FROM identities WHERE id = $1', [identityId]);
+    const authorResult = await query('SELECT display_name, verified FROM identities WHERE id = $1', [identityId]);
     const authorName = authorResult.rows[0]?.display_name ?? null;
+    const authorVerified = Boolean(authorResult.rows[0]?.verified);
     // A reply must point at a real message in this same room, otherwise the
     // quote would render as an empty box (or leak a message from elsewhere).
     let parent = null;
@@ -264,9 +271,9 @@ router.post('/:id/messages', async (req, res, next) => {
     }
 
     const result = await query(
-      `INSERT INTO messages (room_id, identity_id, content, kind, audio, audio_mime, duration_ms, reply_to_id, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-       RETURNING id, room_id, identity_id, content, created_at, kind, audio_mime, duration_ms, reply_to_id`,
+      `INSERT INTO messages (room_id, identity_id, content, kind, audio, audio_mime, duration_ms, reply_to_id, audio_token, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+       RETURNING id, room_id, identity_id, content, created_at, kind, audio_mime, duration_ms, reply_to_id, audio_token`,
       [
         roomId,
         identityId,
@@ -276,11 +283,12 @@ router.post('/:id/messages', async (req, res, next) => {
         isVoice ? baseMime(audioMime) : null,
         isVoice && durationMs ? Math.round(Number(durationMs)) : null,
         parent ? parent.id : null,
+        isVoice ? crypto.randomBytes(16).toString('hex') : null,
       ]
     );
     const message = {
       ...result.rows[0],
-      audioUrl: isVoice ? `/api/messages/${result.rows[0].id}/audio` : null,
+      audioUrl: isVoice ? `/api/messages/${result.rows[0].id}/audio?t=${result.rows[0].audio_token}` : null,
       // Returned inline so the sender's own message shows its quote immediately,
       // without waiting for a refetch.
       replyToId: parent ? parent.id : null,
@@ -289,6 +297,7 @@ router.post('/:id/messages', async (req, res, next) => {
       replyToPreview: parent ? parent.preview : null,
       replyToDisplayName: parent ? parent.display_name : null,
       displayName: authorName,
+      verified: authorVerified,
     };
 
     // Deliver to everyone currently watching this room.

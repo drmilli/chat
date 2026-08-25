@@ -3,6 +3,7 @@ import type { ChatMessage } from './ChatHistory';
 import { shortId } from './identity';
 import { formatDuration, isRecordingSupported, useVoiceRecorder } from './useVoiceRecorder';
 import { apiUrl, fetchJson, ApiError } from './api';
+import { ensureSession } from './session';
 
 const MAX_VOICE_MS = 2 * 60 * 1000;
 
@@ -73,6 +74,9 @@ export function ChatComposer({
   async function post(body: Record<string, unknown>) {
     setSubmitting(true);
     try {
+      // Sending before the session bootstrap finished would 401. Waiting here
+      // makes the composer correct regardless of how fast the user types.
+      await ensureSession();
       const data = await fetchJson<{ message: ChatMessage }>(`/api/rooms/${contractAddress}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

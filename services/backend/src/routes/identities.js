@@ -1,6 +1,7 @@
 const express = require('express');
 const { query } = require('../db');
 const { contentMatchesBlockedPatterns, fetchActiveBlocklistPatterns } = require('../utils/moderation');
+const { requireSession } = require('../auth/sessions');
 const router = express.Router();
 
 const MAX_NAME_LENGTH = 32;
@@ -38,9 +39,14 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireSession, async (req, res, next) => {
   const identityId = req.params.id;
   const { displayName, walletAddress } = req.body;
+
+  // You may only rename yourself — the id in the path has to match the session.
+  if (identityId !== req.session.sub) {
+    return res.status(403).json({ error: 'You can only change your own display name.' });
+  }
 
   if (identityId === SHARED_ANONYMOUS) {
     return res.status(400).json({ error: 'Cannot name the shared anonymous identity' });

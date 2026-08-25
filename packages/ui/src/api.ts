@@ -45,8 +45,19 @@ export class ApiError extends Error {
  *    content type turns that into a message that names the cause.
  *  - Error responses carry a JSON `error` field worth surfacing.
  */
+let authTokenReader: () => string | null = () => null;
+
+/** session.ts registers its store here, avoiding a circular import. */
+export function setAuthTokenReader(reader: () => string | null) {
+  authTokenReader = reader;
+}
+
 export async function fetchJson<T = any>(path: string, init?: RequestInit): Promise<T> {
   const url = apiUrl(path);
+  const token = authTokenReader();
+  if (token) {
+    init = { ...init, headers: { ...(init?.headers || {}), Authorization: `Bearer ${token}` } };
+  }
   let response: Response;
   try {
     response = await fetch(url, init);

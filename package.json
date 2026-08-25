@@ -12,7 +12,8 @@
     "start": "cd services/backend && npm run start",
     "spike:detect": "node scripts/detect/run-detection.mjs scripts/detect/urls.json",
     "test:detect": "node scripts/detect/test-detectors.mjs",
-    "logo:build": "node scripts/logo/build-icons.js"
+    "logo:build": "node scripts/logo/build-icons.js",
+    "test:security": "node scripts/security/widget-boundary.test.mjs"
   },
   "dependencies": {
     "playwright": "^1.62.1"

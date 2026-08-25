@@ -2,7 +2,23 @@ import { detectGMGN } from './detectors/gmgn';
 import { detectAxiom } from './detectors/axiom';
 import { detectPadre } from './detectors/padre';
 import { normalizeCA } from './detectors/common.ts';
-import { embedUrl, siteLabel } from './config';
+import { embedUrl, siteLabel, WEB_APP_URL } from './config';
+
+const WIDGET_PROTOCOL = 'token-chat/1';
+
+// A random channel per injected widget, so two frames (or a hostile frame that
+// somehow learns the origin) cannot cross-talk.
+const WIDGET_CHANNEL = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+// The one origin the widget is allowed to live on. Anything claiming to be the
+// widget from a different origin is ignored.
+const WIDGET_ORIGIN = (() => {
+  try {
+    return new URL(WEB_APP_URL).origin;
+  } catch (err) {
+    return '';
+  }
+})();
 
 (function () {
   const WIDGET_ID = 'token-chat-widget';
@@ -110,14 +126,14 @@ import { embedUrl, siteLabel } from './config';
   function injectWidget(ca: string) {
     const existing = document.getElementById(WIDGET_ID) as HTMLIFrameElement | null;
     if (existing) {
-      const next = embedUrl(ca);
+      const next = withHostContext(embedUrl(ca));
       if (existing.src !== next) existing.src = next;
       return;
     }
 
     const iframe = document.createElement('iframe');
     iframe.id = WIDGET_ID;
-    iframe.src = embedUrl(ca);
+    iframe.src = withHostContext(embedUrl(ca));
     iframe.style.position = 'fixed';
     iframe.style.bottom = '12px';
     iframe.style.right = '12px';
@@ -133,14 +149,11 @@ import { embedUrl, siteLabel } from './config';
     // allow-forms is required or Chrome blocks the composer's submit event,
     // which makes the widget look loaded but inert. allow-modals covers the
     // manual-paste prompt; allow-popups lets in-chat links open a tab.
-    iframe.sandbox.add(
-      'allow-scripts',
-      'allow-same-origin',
-      'allow-forms',
-      'allow-modals',
-      'allow-popups',
-      'allow-popups-to-escape-sandbox'
-    );
+    // Least privilege: allow-popups-to-escape-sandbox is deliberately NOT set —
+    // a popup opened by the widget stays sandboxed. allow-forms is required or
+    // Chrome blocks the composer's submit event entirely.
+    iframe.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-modals', 'allow-popups');
+    iframe.referrerPolicy = 'no-referrer';
     withBody(() => {
       // The route may have changed again while we waited for <body>.
       if (currentCA !== ca || document.getElementById(WIDGET_ID)) return;
@@ -153,16 +166,43 @@ import { embedUrl, siteLabel } from './config';
     document.getElementById(WIDGET_ID)?.remove();
   }
 
-  // The embedded chat asks to grow when the user expands it.
+  /** Appends the host origin and channel so the widget knows exactly who embedded it. */
+  function withHostContext(url: string): string {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}host=${encodeURIComponent(window.location.origin)}&channel=${WIDGET_CHANNEL}`;
+  }
+
+  /**
+   * Host side of the widget boundary.
+   *
+   * Every check matters: source proves it came from our frame, origin proves
+   * that frame is still on our web app (a redirect elsewhere would keep the same
+   * source), protocol and channel reject stray page chatter, and the height is
+   * clamped so the widget cannot cover the whole host page.
+   */
   function listenForResize(iframe: HTMLIFrameElement) {
     window.addEventListener('message', (event) => {
       if (event.source !== iframe.contentWindow) return;
+      if (!WIDGET_ORIGIN || event.origin !== WIDGET_ORIGIN) return;
+
       const data = event.data;
-      if (data?.type !== 'token-chat:resize') return;
+      if (!data || data.protocol !== WIDGET_PROTOCOL) return;
+      if (data.channel !== WIDGET_CHANNEL) return;
+      if (data.type !== 'resize') return;
+
       const height = Number(data.height);
       if (!Number.isFinite(height)) return;
       iframe.style.height = `${Math.min(Math.max(height, 56), window.innerHeight - 40)}px`;
     });
+  }
+
+  /** Sends to the widget's exact origin — never '*'. */
+  function postToWidget(iframe: HTMLIFrameElement, type: string, payload: Record<string, unknown> = {}) {
+    if (!WIDGET_ORIGIN) return;
+    iframe.contentWindow?.postMessage(
+      { protocol: WIDGET_PROTOCOL, channel: WIDGET_CHANNEL, type, ...payload },
+      WIDGET_ORIGIN
+    );
   }
 
   function injectFallback() {

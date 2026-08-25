@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { signInWithWallet } from '@token-chat/ui';
 
 export type WalletKind = 'evm' | 'solana';
 
@@ -25,6 +26,8 @@ export type WalletState = {
   wallets: DiscoveredWallet[];
   /** True while the wallet picker should be shown. */
   choosing: boolean;
+  /** Ownership proved by signature — the identity is verified server-side. */
+  verified: boolean;
 };
 
 const initialState: WalletState = {
@@ -38,6 +41,7 @@ const initialState: WalletState = {
   noProvider: false,
   wallets: [],
   choosing: false,
+  verified: false,
 };
 
 type AnyWindow = Window & {
@@ -224,6 +228,28 @@ export function useWallet() {
           error: accounts[0] ? null : 'Wallet returned no account.',
         }));
 
+        // Connecting only proves the wallet is present. Signing the server's
+        // nonce proves ownership, which is what upgrades the session.
+        if (accounts[0]) {
+          try {
+            await signInWithWallet({
+              address: accounts[0],
+              chain: 'evm',
+              signMessage: (message) =>
+                chosen.provider.request({ method: 'personal_sign', params: [message, accounts[0]] }),
+            });
+            setWallet((current) => ({ ...current, verified: true }));
+          } catch (err: any) {
+            setWallet((current) => ({
+              ...current,
+              verified: false,
+              error: /reject|denied/i.test(err?.message || '')
+                ? 'Wallet connected, but you declined the sign-in signature — you are posting as a guest.'
+                : 'Wallet connected, but sign-in failed — you are posting as a guest.',
+            }));
+          }
+        }
+
         chosen.provider.on?.('accountsChanged', (next: string[]) =>
           setWallet((current) => ({ ...current, account: next[0] || null, isConnected: next.length > 0 }))
         );
@@ -233,6 +259,22 @@ export function useWallet() {
 
       const response = await withTimeout<any>(chosen.provider.connect(), REQUEST_TIMEOUT_MS);
       const account = (response?.publicKey ?? chosen.provider.publicKey)?.toString();
+
+      if (account) {
+        try {
+          await signInWithWallet({
+            address: account,
+            chain: 'solana',
+            signMessage: async (message) => {
+              const signed = await chosen.provider.signMessage(new TextEncoder().encode(message), 'utf8');
+              const bs58 = await import('bs58');
+              return (bs58.default?.encode || (bs58 as any).encode)(signed.signature ?? signed);
+            },
+          });
+        } catch (err) {
+          /* posting continues as a guest */
+        }
+      }
       setWallet((current) => ({
         ...current,
         account: account ?? null,

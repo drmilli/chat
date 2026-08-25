@@ -1,0 +1,13 @@
+{
+  "name": "services-execution",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Trade execution engine for Robinhood Chain (T-402).",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "ethers": "^6.17.0"
+  }
+}

@@ -7,6 +7,7 @@ type ActivityEvent = {
   roomId: string;
   identityId: string | null;
   preview: string | null;
+  messageKind: 'text' | 'voice' | null;
   createdAt: string;
 };
 
@@ -101,7 +102,8 @@ export function ActivityFeed({ limit = 12 }: { limit?: number }) {
                     </>
                   ) : (
                     <>
-                      <span className="mono activity-room">{shortId(actor)}</span> posted in{' '}
+                      <span className="mono activity-room">{shortId(actor)}</span>{' '}
+                      {event.messageKind === 'voice' ? 'sent a voice note in' : 'posted in'}{' '}
                       <span className="mono activity-room">{shortId(event.roomId, 10, 6)}</span>
                     </>
                   )}

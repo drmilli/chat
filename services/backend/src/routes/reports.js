@@ -1,9 +1,11 @@
 const express = require('express');
 const { query } = require('../db');
+const { requireSession } = require('../auth/sessions');
 const router = express.Router();
 
-router.post('/', async (req, res, next) => {
-  const { identityId, roomId, messageId, reason } = req.body;
+router.post('/', requireSession, async (req, res, next) => {
+  const identityId = req.session.sub;
+  const { roomId, messageId, reason } = req.body;
   if (!roomId || !reason) {
     return res.status(400).json({ error: 'roomId and reason are required' });
   }

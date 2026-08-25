@@ -94,9 +94,14 @@ chrome.tabs.onRemoved.addListener((tabId: number) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId: number, changeInfo: any) => {
-  // A navigation invalidates the previous detection; the content script will
-  // report again on the new page if it finds a token.
-  if (changeInfo.status === 'loading' && changeInfo.url) {
+  // A navigation invalidates the previous detection; the content script reports
+  // again on the new page if it finds a token.
+  //
+  // Without the broad `tabs` permission, changeInfo.url is only present for
+  // hosts we hold permission for, so `status === 'loading'` alone is the
+  // trigger. Clearing once too often is harmless; missing a clear would leave a
+  // stale room showing for the wrong page.
+  if (changeInfo.status === 'loading') {
     clearDetection(tabId).catch(() => undefined);
   }
 });

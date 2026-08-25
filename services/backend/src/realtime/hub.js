@@ -1,11 +1,18 @@
 /**
  * In-process pub/sub for room events, backing the SSE endpoint.
  *
- * SCALING NOTE: subscribers live in this process's memory, so a message
- * published by one instance is only delivered to clients connected to that same
- * instance. Running more than one backend replica requires a shared bus
- * (Redis pub/sub, or Postgres LISTEN/NOTIFY over a NON-pooled connection —
- * the Neon `-pooler` host does not support it).
+ * ============================ RUN ONE INSTANCE ============================
+ * Subscribers live in this process's memory, so a message published by one
+ * instance is only delivered to clients connected to that same instance. With
+ * two replicas, half the room silently stops receiving messages — there is no
+ * error, it just looks like chat is broken.
+ *
+ * The same applies to the sign-in nonces in routes/auth.js and the rate-limiter
+ * counters in middleware/rateLimiter.js.
+ *
+ * Before scaling out, move all three to a shared store (Redis pub/sub; Postgres
+ * LISTEN/NOTIFY will not work over Neon's `-pooler` host).
+ * ==========================================================================
  */
 
 const MAX_CLIENTS = Number(process.env.SSE_MAX_CLIENTS || 2000);
