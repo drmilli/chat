@@ -5,7 +5,8 @@ import { ChatHistory, ChatMessage } from './ChatHistory';
 import { avatarGradient, initials, shortId } from './identity';
 import { MAX_NAME_LENGTH, useProfile } from './useProfile';
 import { apiUrl, fetchJson } from './api';
-import { readHostContext, postToHost } from './embedBridge';
+import { readHostContext, postToHost, onHostMessage } from './embedBridge';
+import { adoptSession } from './session';
 import { VoiceLounge } from './VoiceLounge';
 import { useVoiceLounge, type VoiceEvent } from './useVoiceLounge';
 import { addressChain, chainName } from './tokens';
@@ -96,8 +97,11 @@ export function ChatPage({
   // second stream: a second connection would double the server's client count
   // and still be no more live than this one.
   const voiceListeners = useRef(new Set<(event: VoiceEvent) => void>());
+  // Bumped when the extension hands us a session, so the profile hook re-runs
+  // and picks up the now-signed-in identity.
+  const [sessionEpoch, setSessionEpoch] = useState(0);
 
-  const profile = useProfile(walletAccount);
+  const profile = useProfile(walletAccount, sessionEpoch);
   const identity = profile.identityId;
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
@@ -287,6 +291,29 @@ export function ChatPage({
     if (!embedMode) return;
     postToHost(hostContext, 'resize', { height: expanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT });
   }, [embedMode, expanded, hostContext]);
+
+  /**
+   * Asks the extension for a session created when the user signed in on the
+   * web app.
+   *
+   * Chrome partitions third-party storage, so the token written by the app as a
+   * top-level tab is invisible to this same-origin widget embedded in a token
+   * page. Without this hand-off, connecting a wallet through the extension
+   * appeared to do nothing at all — the widget simply never saw it.
+   */
+  useEffect(() => {
+    if (!embedMode || !hostContext.origin) return;
+
+    const stop = onHostMessage(hostContext, (type, data) => {
+      if (type !== 'session' || typeof data?.token !== 'string') return;
+      // adoptSession refuses to overwrite a session we already have, so a
+      // stale token cannot clobber a fresher sign-in made here.
+      if (adoptSession(data.token)) setSessionEpoch((n) => n + 1);
+    });
+
+    postToHost(hostContext, 'session-request');
+    return stop;
+  }, [embedMode, hostContext]);
 
   const tokenChain = useMemo(() => addressChain(contractAddress), [contractAddress]);
 

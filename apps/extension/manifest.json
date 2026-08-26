@@ -45,6 +45,16 @@
         "content-script.js"
       ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://token-chat.vercel.app/*",
+        "http://localhost:4173/*"
+      ],
+      "js": [
+        "session-bridge.js"
+      ],
+      "run_at": "document_idle"
     }
   ],
   "icons": {

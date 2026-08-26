@@ -15,16 +15,30 @@ const manifestPath = resolve(here, '..', 'dist', 'manifest.json');
 const keepDevHosts = process.env.EXTENSION_DEV_HOSTS === 'true';
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 
-const before = manifest.host_permissions.length;
+const isDevHost = (host) => host.includes('localhost');
+
+let before = manifest.host_permissions.length;
+for (const script of manifest.content_scripts ?? []) before += script.matches.length;
+
 if (!keepDevHosts) {
-  manifest.host_permissions = manifest.host_permissions.filter((host) => !host.includes('localhost'));
+  manifest.host_permissions = manifest.host_permissions.filter((host) => !isDevHost(host));
+
+  // Content-script matches need the same treatment. Stripping only
+  // host_permissions left `http://localhost:4173/*` in a shipped manifest —
+  // the exact thing this pass exists to prevent, and a review flag (T-507).
+  manifest.content_scripts = (manifest.content_scripts ?? [])
+    .map((script) => ({ ...script, matches: script.matches.filter((host) => !isDevHost(host)) }))
+    // A script whose every match was a dev host has nothing left to run on.
+    .filter((script) => script.matches.length > 0);
 }
 
 writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
-const removed = before - manifest.host_permissions.length;
+let after = manifest.host_permissions.length;
+for (const script of manifest.content_scripts ?? []) after += script.matches.length;
+const removed = before - after;
 console.log(
   keepDevHosts
     ? 'manifest: kept localhost hosts (EXTENSION_DEV_HOSTS=true)'
-    : `manifest: stripped ${removed} localhost host permission(s) for release`
+    : `manifest: stripped ${removed} localhost host/match entr(ies) for release`
 );

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "build": "vite build --mode content-script && vite build --mode background && vite build --mode popup && node scripts/finalize-manifest.mjs",
+    "build": "vite build --mode content-script && vite build --mode background && vite build --mode popup && vite build --mode session-bridge && node scripts/finalize-manifest.mjs",
     "dev": "npm run build",
     "build:dev": "EXTENSION_DEV_HOSTS=true npm run build"
   },

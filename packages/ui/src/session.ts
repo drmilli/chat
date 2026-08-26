@@ -38,6 +38,51 @@ setAuthTokenReader(getToken);
 export function setToken(next: string) {
   token = next;
   write(next);
+  publishToExtension(next);
+}
+
+/**
+ * Announces a new session on the page so the extension can pick it up.
+ *
+ * WHY THIS IS NEEDED AT ALL. The widget is this origin embedded in a token
+ * site, and Chrome partitions third-party storage: localStorage written by
+ * token-chat as a top-level tab lives in a DIFFERENT bucket from token-chat
+ * inside an iframe on gmgn.ai. So signing in via the extension's "Connect
+ * wallet" button — which opens this app in its own tab — could never reach the
+ * widget. It wrote a token the widget is not permitted to read.
+ *
+ * The extension listens for this on its own content script, stores the token,
+ * and hands it to the widget over the validated host bridge.
+ *
+ * Posted to our OWN origin only. `'*'` would broadcast the session token to
+ * every frame that can see this window.
+ */
+function publishToExtension(next: string) {
+  if (typeof window === 'undefined') return;
+  // Only meaningful when we are the top-level page; inside the widget the
+  // extension is the one telling US.
+  if (window.parent !== window) return;
+  try {
+    window.postMessage({ protocol: SESSION_PROTOCOL, type: 'session', token: next }, window.location.origin);
+  } catch (err) {
+    /* nothing depends on this succeeding */
+  }
+}
+
+/** Namespaced so the extension can tell our frames apart from anyone else's. */
+export const SESSION_PROTOCOL = 'token-chat/session/1';
+
+/**
+ * Adopts a session handed in by the extension.
+ *
+ * Returns false when we already have one, so a stale token pushed by the
+ * extension can never clobber a fresher sign-in made inside the widget.
+ */
+export function adoptSession(next: string): boolean {
+  if (!next || token) return false;
+  token = next;
+  write(next);
+  return true;
 }
 
 export function clearSession() {

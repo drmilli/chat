@@ -8,6 +8,7 @@ const ENTRIES = {
   'content-script': 'content-script.ts',
   background: 'background.ts',
   popup: 'popup.ts',
+  'session-bridge': 'session-bridge.ts',
 } as const;
 
 type EntryName = keyof typeof ENTRIES;

@@ -27,7 +27,7 @@ export type Profile = {
   error: string | null;
 };
 
-export function useProfile(walletAccount?: string) {
+export function useProfile(walletAccount?: string, sessionEpoch = 0) {
   // The identity now comes from a server-issued session. It used to be a
   // client-invented `guest-xxxx` string, which the API accepted on trust.
   const [identityId, setIdentityId] = useState<string>('');
@@ -82,8 +82,9 @@ export function useProfile(walletAccount?: string) {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
     };
-    // Re-runs when the wallet connects, so the session upgrade is picked up.
-  }, [walletAccount]);
+    // Re-runs when the wallet connects, and when the extension hands the widget
+    // a session from the web app tab, so either upgrade is picked up.
+  }, [walletAccount, sessionEpoch]);
 
   const saveName = useCallback(
     async (nextName: string): Promise<boolean> => {

@@ -169,6 +169,9 @@ const WIDGET_ORIGIN = (() => {
     document.getElementById(WIDGET_ID)?.remove();
   }
 
+  /** Where session-bridge.ts parks the token from the first-party tab. */
+  const SESSION_KEY = 'token-chat:session';
+
   /** Appends the host origin and channel so the widget knows exactly who embedded it. */
   function withHostContext(url: string): string {
     const separator = url.includes('?') ? '&' : '?';
@@ -191,11 +194,30 @@ const WIDGET_ORIGIN = (() => {
       const data = event.data;
       if (!data || data.protocol !== WIDGET_PROTOCOL) return;
       if (data.channel !== WIDGET_CHANNEL) return;
-      if (data.type !== 'resize') return;
 
-      const height = Number(data.height);
-      if (!Number.isFinite(height)) return;
-      iframe.style.height = `${Math.min(Math.max(height, 56), window.innerHeight - 40)}px`;
+      if (data.type === 'resize') {
+        const height = Number(data.height);
+        if (!Number.isFinite(height)) return;
+        iframe.style.height = `${Math.min(Math.max(height, 56), window.innerHeight - 40)}px`;
+        return;
+      }
+
+      // The widget cannot read the session created when the user signed in on
+      // the web app: Chrome partitions third-party storage, so the same origin
+      // inside this page has a different localStorage. Extension storage is
+      // not partitioned, so we hand the token across the same validated
+      // channel — only ever to the frame we created, on its own origin.
+      if (data.type === 'session-request') {
+        chrome.storage.local
+          .get(SESSION_KEY)
+          .then((stored) => {
+            const token = stored?.[SESSION_KEY];
+            if (typeof token === 'string' && token) postToWidget(iframe, 'session', { token });
+          })
+          .catch(() => {
+            /* no session to hand over; the widget stays a guest */
+          });
+      }
     });
   }
 
