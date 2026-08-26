@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { signInWithWallet } from '@token-chat/ui';
+import {
+  getWalletConnectProvider,
+  isWalletConnectConfigured,
+  restoreWalletConnectSession,
+} from '../wallet/walletconnect';
 
 export type WalletKind = 'evm' | 'solana';
 
@@ -9,7 +14,15 @@ export type DiscoveredWallet = {
   name: string;
   icon?: string;
   kind: WalletKind;
+  /** Null for wallets whose provider is created on demand — see `getProvider`. */
   provider: any;
+  /**
+   * Lazily builds the provider. WalletConnect's bundle is large and most
+   * visitors never need it, so it is only imported once actually chosen.
+   */
+  getProvider?: () => Promise<any>;
+  /** Reaches a wallet app on a phone rather than an extension in this browser. */
+  isMobileBridge?: boolean;
 };
 
 export type WalletState = {
@@ -54,12 +67,36 @@ type AnyWindow = Window & {
 // on "Connecting…" forever.
 const REQUEST_TIMEOUT_MS = 60000;
 
+/**
+ * Approving on a phone means unlocking it, finding the wallet app and coming
+ * back. The extension timeout is far too short for that, and firing it early
+ * tells the user their wallet failed while they are still mid-approval.
+ */
+const MOBILE_REQUEST_TIMEOUT_MS = 180000;
+
 function legacyEvm(): DiscoveredWallet | null {
   if (typeof window === 'undefined') return null;
   const provider = (window as AnyWindow).ethereum;
   if (!provider) return null;
   const name = provider.isMetaMask ? 'MetaMask' : provider.isRabby ? 'Rabby' : provider.isCoinbaseWallet ? 'Coinbase Wallet' : 'Browser wallet';
   return { id: 'legacy-evm', name, kind: 'evm', provider };
+}
+
+/**
+ * WalletConnect, offered alongside the injected wallets rather than as a
+ * separate flow — from the user's point of view it is just another wallet to
+ * pick, and on a phone it is usually the only one available.
+ */
+function walletConnectOption(): DiscoveredWallet | null {
+  if (!isWalletConnectConfigured()) return null;
+  return {
+    id: 'walletconnect',
+    name: 'Mobile wallet (WalletConnect)',
+    kind: 'evm',
+    provider: null,
+    getProvider: getWalletConnectProvider,
+    isMobileBridge: true,
+  };
 }
 
 // The target sites are Solana-focused, so Phantom and friends count as wallets too.
@@ -74,8 +111,12 @@ function solanaWallet(): DiscoveredWallet | null {
 function dedupe(wallets: DiscoveredWallet[]): DiscoveredWallet[] {
   const seen = new Set<any>();
   return wallets.filter((wallet) => {
-    if (seen.has(wallet.provider)) return false;
-    seen.add(wallet.provider);
+    // Lazy wallets have no provider yet, so they key on id instead. Keying
+    // every one on `provider` would let two null-provider entries collide and
+    // silently drop the second.
+    const key = wallet.provider ?? `id:${wallet.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
 }
@@ -141,7 +182,7 @@ export function useWallet() {
         kind: 'evm',
         provider,
       });
-      publish(dedupe([...found.values(), ...[solanaWallet()].filter(Boolean) as DiscoveredWallet[]]));
+      publish(dedupe([...found.values(), ...[solanaWallet(), walletConnectOption()].filter(Boolean) as DiscoveredWallet[]]));
     }
 
     window.addEventListener('eip6963:announceProvider', onAnnounce as EventListener);
@@ -150,7 +191,9 @@ export function useWallet() {
     // Wallets that predate EIP-6963 only expose the globals.
     const settle = setTimeout(() => {
       const legacy = found.size === 0 ? [legacyEvm()] : [];
-      publish(dedupe([...found.values(), ...legacy, solanaWallet()].filter(Boolean) as DiscoveredWallet[]));
+      publish(
+        dedupe([...found.values(), ...legacy, solanaWallet(), walletConnectOption()].filter(Boolean) as DiscoveredWallet[])
+      );
     }, 350);
 
     return () => {
@@ -164,8 +207,30 @@ export function useWallet() {
     let cancelled = false;
 
     async function restore() {
+      // A previously approved WalletConnect session survives a reload, so it is
+      // restored first — but only if one already exists. Initialising the
+      // provider unconditionally here would ambush every returning visitor with
+      // a QR code they never asked for.
+      const wc = await restoreWalletConnectSession();
+      if (cancelled) return;
+      if (wc?.accounts?.length) {
+        setWallet((current) => ({
+          ...current,
+          account: wc.accounts[0],
+          chainId: wc.chainId ? `0x${Number(wc.chainId).toString(16)}` : null,
+          kind: 'evm',
+          walletName: 'Mobile wallet (WalletConnect)',
+          isConnected: true,
+          error: null,
+        }));
+        return;
+      }
+
       for (const candidate of walletsRef.current) {
         if (cancelled) return;
+        // Lazy wallets are never probed here; touching one would build the
+        // provider and open its modal.
+        if (candidate.getProvider) continue;
         try {
           if (candidate.kind === 'evm') {
             const accounts = await candidate.provider.request({ method: 'eth_accounts' });
@@ -211,10 +276,18 @@ export function useWallet() {
   const connectWith = useCallback(async (chosen: DiscoveredWallet) => {
     setWallet((current) => ({ ...current, connecting: true, error: null, choosing: false }));
     try {
+      // A lazy wallet (WalletConnect) builds its provider on first use. From
+      // here on it is an ordinary EIP-1193 provider and the paths below do not
+      // care which kind it is.
+      const provider = chosen.getProvider ? await chosen.getProvider() : chosen.provider;
+      chosen = { ...chosen, provider };
+
       if (chosen.kind === 'evm') {
         const accounts = await withTimeout<string[]>(
           chosen.provider.request({ method: 'eth_requestAccounts' }),
-          REQUEST_TIMEOUT_MS
+          // A phone approval means unlocking a device and switching apps, which
+          // takes far longer than clicking an extension popup.
+          chosen.isMobileBridge ? MOBILE_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS
         );
         const chainId = await chosen.provider.request({ method: 'eth_chainId' });
         setWallet((current) => ({
@@ -254,6 +327,18 @@ export function useWallet() {
           setWallet((current) => ({ ...current, account: next[0] || null, isConnected: next.length > 0 }))
         );
         chosen.provider.on?.('chainChanged', (next: string) => setWallet((current) => ({ ...current, chainId: next })));
+        // A WalletConnect session can be ended from the phone, where this app
+        // gets no other signal. Without this the UI keeps showing a connected
+        // wallet that can no longer sign anything.
+        chosen.provider.on?.('disconnect', () =>
+          setWallet((current) => ({
+            ...current,
+            account: null,
+            isConnected: false,
+            verified: false,
+            error: 'Wallet disconnected.',
+          }))
+        );
         return;
       }
 
@@ -303,10 +388,15 @@ export function useWallet() {
     const wallets = walletsRef.current;
 
     if (wallets.length === 0) {
+      // On a phone there is no extension to install, so the desktop advice is
+      // actively unhelpful — say what is actually missing instead.
+      const onMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       setWallet((current) => ({
         ...current,
         noProvider: true,
-        error: 'No browser wallet detected. Install MetaMask or Phantom, then reload this page.',
+        error: onMobile
+          ? 'Mobile wallet support is not configured on this site yet.'
+          : 'No browser wallet detected. Install MetaMask or Phantom, then reload this page.',
       }));
       return;
     }

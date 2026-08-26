@@ -408,12 +408,24 @@ export function App() {
                       <img src={entry.icon} alt="" width={28} height={28} style={{ borderRadius: 8 }} />
                     ) : (
                       <span className="avatar avatar-sm" style={{ background: 'var(--accent)' }}>
-                        {entry.name.slice(0, 2)}
+                        {entry.isMobileBridge ? '📱' : entry.name.slice(0, 2)}
                       </span>
                     )}
-                    <span style={{ fontSize: '0.95rem' }}>{entry.name}</span>
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ fontSize: '0.95rem', display: 'block' }}>{entry.name}</span>
+                      {entry.isMobileBridge ? (
+                        <span className="muted" style={{ fontSize: '0.75rem' }}>
+                          Scan a QR code, or open your wallet app on this phone
+                        </span>
+                      ) : null}
+                    </span>
                   </span>
-                  <span className="pill">{entry.kind === 'solana' ? 'Solana' : 'EVM'}</span>
+                  {/* "Mobile" is the distinction that matters in this list — a
+                      WalletConnect session is EVM too, but that is not why
+                      someone picks it. */}
+                  <span className="pill">
+                    {entry.isMobileBridge ? 'Mobile' : entry.kind === 'solana' ? 'Solana' : 'EVM'}
+                  </span>
                 </button>
               ))}
             </div>

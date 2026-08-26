@@ -211,9 +211,34 @@ Called for by `development-plan.md` and not yet built.
   never required. Kicks are keyed by **identity, not peer id**, or a refresh would undo them.
   *Not built:* no SFU path — see the note in `voice/rooms.js` before letting rooms grow.
 
-- [ ] **T-206 · WalletConnect for mobile wallets** — Owner: Frontend · 3 days
+- [~] **T-206 · WalletConnect for mobile wallets** — Owner: Frontend · 3 days
   EIP-6963 + injected Phantom covers browser-extension wallets only. Mobile users cannot connect.
-  *Acceptance:* a mobile wallet connects via QR and can post as a verified identity.
+  *Built:* `@walletconnect/ethereum-provider` behind `apps/web/src/wallet/walletconnect.ts`, offered in
+  the existing wallet picker as one more choice rather than a separate flow. QR when the page is on a
+  desktop, deep link when it is already on the phone.
+  *Design calls:*
+  - **It is an EIP-1193 provider**, so once connected it flows through the existing EVM path untouched
+    — including the `personal_sign` that upgrades the session to verified (T-003). WalletConnect is a
+    transport here, not a second kind of wallet.
+  - **Lazy-loaded.** ~1 MB of WalletConnect splits into its own chunks and only downloads when someone
+    picks the mobile option; the entry chunk is unchanged. With the project id unset it is tree-shaken
+    out entirely.
+  - **Restore never opens a QR.** A previously approved session is reused on load, but the provider is
+    only initialised if a session already exists — otherwise every returning visitor would be ambushed
+    by a QR code.
+  - **3-minute approval timeout** for the mobile bridge, not 60s: approving on a phone means unlocking
+    it and switching apps, and firing early tells the user their wallet failed mid-approval.
+  - Handles `disconnect` from the wallet side, which a phone can do and the page gets no other signal for.
+  *Verified:* typecheck clean; confirmed by build that WalletConnect stays out of the entry chunk with
+  the id set, and disappears completely with it unset.
+  *Still yours:* create a free project id at **cloud.reown.com**, set `VITE_WALLETCONNECT_PROJECT_ID`
+  in Vercel, and restrict it by domain in their dashboard. It is public by design (it ships in the
+  bundle) — it is an identifier, not a secret. Until it is set, the mobile option stays hidden.
+  *Gap — Solana mobile is NOT covered.* This is EVM-only, while every real room so far is Solana. A
+  Phantom user on a phone still cannot connect; that needs Solana Mobile Wallet Adapter or Phantom
+  deeplinks, which is separate work.
+  *Acceptance:* a mobile wallet connects via QR and can post as a verified identity — untested until a
+  project id exists.
 
 - [x] **T-207 · Verified badge** — Owner: Frontend · 1 day
   `identities.verified` exists but nothing renders it. Depends on T-003.
