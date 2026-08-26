@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ChatMessage } from './ChatHistory';
 import { shortId } from './identity';
 import { formatDuration, isRecordingSupported, useVoiceRecorder } from './useVoiceRecorder';
+import { EmojiPicker, rememberEmoji } from './EmojiPicker';
 import { apiUrl, fetchJson, ApiError } from './api';
 import { ensureSession } from './session';
 
@@ -42,6 +43,34 @@ export function ChatComposer({
   const [identityId, setIdentityId] = useState(defaultIdentity ?? 'anonymous');
   const [submitting, setSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+
+  /**
+   * Inserts at the caret rather than appending. Appending is the version that
+   * feels broken: pick an emoji after moving the cursor mid-sentence and it
+   * lands at the end, far from where you were typing.
+   */
+  function insertEmoji(emoji: string) {
+    rememberEmoji(emoji);
+    const node = textareaRef.current;
+
+    if (!node) {
+      setContent((current) => current + emoji);
+      return;
+    }
+
+    const start = node.selectionStart ?? node.value.length;
+    const end = node.selectionEnd ?? start;
+    setContent((current) => current.slice(0, start) + emoji + current.slice(end));
+
+    // Restore focus and put the caret after what was inserted, so typing
+    // continues where the user was rather than at the end of the box.
+    requestAnimationFrame(() => {
+      node.focus();
+      const caret = start + emoji.length;
+      node.setSelectionRange(caret, caret);
+    });
+  }
   const recorder = useVoiceRecorder();
   const recordingSupported = isRecordingSupported();
   const isRecording = recorder.status === 'recording' || recorder.status === 'requesting';
@@ -220,6 +249,22 @@ export function ChatComposer({
         </div>
       ) : (
         <div className="tg-inputrow">
+          <div className="emoji-anchor">
+            {emojiOpen && (
+              <EmojiPicker onPick={insertEmoji} onClose={() => setEmojiOpen(false)} />
+            )}
+            <button
+              type="button"
+              className={`icon-btn emoji-toggle${emojiOpen ? ' is-open' : ''}`}
+              onClick={() => setEmojiOpen((open) => !open)}
+              aria-expanded={emojiOpen}
+              aria-label="Insert emoji"
+              title="Insert emoji"
+            >
+              🙂
+            </button>
+          </div>
+
           <textarea
             ref={textareaRef}
             className="tg-textarea"

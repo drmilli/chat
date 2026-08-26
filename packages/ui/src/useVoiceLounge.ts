@@ -76,6 +76,10 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
   const [turnConfigured, setTurnConfigured] = useState(true);
   const [speaking, setSpeaking] = useState<Record<string, boolean>>({});
   const [canModerate, setCanModerate] = useState(false);
+  /** A browser refused to play remote audio until the user interacts. */
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  /** remoteId -> RTCPeerConnectionState, so the UI can show a stalled peer. */
+  const [peerStates, setPeerStates] = useState<Record<string, string>>({});
   /** Set when a moderator silenced us, so the unmute control stays disabled. */
   const [forcedMute, setForcedMute] = useState(false);
 
@@ -95,6 +99,9 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
   const refused = useRef(new Set<string>());
   const meters = useRef(new Map<string, { analyser: AnalyserNode; data: Uint8Array }>());
   const statusRef = useRef<VoiceStatus>('idle');
+  // Read inside RTCPeerConnection callbacks, which close over the render they
+  // were created in — a state value there would be permanently stale.
+  const turnConfiguredRef = useRef(true);
   const peerIdRef = useRef<string | null>(peerId);
   // `leave` is defined below the SSE effect that needs it; a ref keeps the
   // effect out of a dependency cycle that would resubscribe on every render.
@@ -102,6 +109,7 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
 
   statusRef.current = status;
   peerIdRef.current = peerId;
+  turnConfiguredRef.current = turnConfigured;
 
   const post = useCallback(
     <T,>(path: string, body: Record<string, unknown>): Promise<T> =>
@@ -182,16 +190,34 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
           audioEls.current.set(remoteId, el);
         }
         el.srcObject = stream;
-        // Autoplay can still be refused; joining is a user gesture, so this
-        // normally succeeds, but a rejection must not throw into ontrack.
-        el.play?.().catch(() => {});
+        // A refused play() is the single most confusing failure in voice chat:
+        // everything connects, the tiles look right, and there is simply no
+        // sound. Swallowing it leaves the user with no way to know. Surface it
+        // so the UI can offer the one thing that fixes it — a click.
+        el.play?.().then(
+          () => setAudioBlocked(false),
+          () => setAudioBlocked(true)
+        );
         attachMeter(remoteId, stream);
       };
 
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+        const state = pc.connectionState;
+        setPeerStates((current) => ({ ...current, [remoteId]: state }));
+
+        if (state === 'failed') {
+          // Dropping this silently is what makes "nobody can hear anyone" look
+          // like a bug with no cause: presence still lists the peer, so the UI
+          // looks healthy while no audio flows. Name the likeliest reason.
+          setError(
+            turnConfiguredRef.current
+              ? 'Could not establish a direct audio connection to one participant.'
+              : 'Could not connect audio — no TURN relay is configured, and this network needs one.'
+          );
           dropPeer(remoteId);
+          return;
         }
+        if (state === 'closed') dropPeer(remoteId);
       };
 
       return pc;
@@ -290,6 +316,8 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
     setStatus('idle');
     setMuted(true);
     setForcedMute(false);
+    setAudioBlocked(false);
+    setPeerStates({});
     refused.current.clear();
     if (me) await post('leave', { peerId: me }).catch(() => {});
   }, [dropPeer, post]);
@@ -326,6 +354,11 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
       setCanModerate(Boolean(result.canModerate));
       setParticipants([result.participant, ...result.peers]);
       setStatus('live');
+      // Set imperatively as well as through state. Incoming signals are gated
+      // on statusRef, which otherwise only updates on the next render — an
+      // answer or ICE candidate arriving in that window would be dropped, and
+      // the negotiation would never complete.
+      statusRef.current = 'live';
 
       // Offer only to the peers this side is the initiator for; the others
       // will offer to us when they see our peer-joined event.
@@ -350,6 +383,21 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
     // other participants can render the icon.
     await post('mute', { peerId: peerIdRef.current, muted: next }).catch(() => {});
   }, [forcedMute, muted, post]);
+
+  /**
+   * Retries playback for every remote stream. Must be called from a real user
+   * gesture — that gesture is the only thing that lifts an autoplay block, and
+   * it is why the UI shows a button rather than retrying on a timer.
+   */
+  const enableAudio = useCallback(async () => {
+    const results = await Promise.allSettled(
+      [...audioEls.current.values()].map((el) => el.play())
+    );
+    if (results.every((r) => r.status === 'fulfilled')) {
+      setAudioBlocked(false);
+      setError(null);
+    }
+  }, []);
 
   /**
    * Moderator action against one participant. The server authorises it; this
@@ -477,12 +525,13 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
   return useMemo(
     () => ({
       status, participants, error, muted, forcedMute, speaking, turnConfigured, isFull, canJoin,
-      canModerate, join, leave, toggleMute, moderate,
+      canModerate, audioBlocked, peerStates,
+      join, leave, toggleMute, moderate, enableAudio,
       supported: isVoiceSupported(),
       selfPeerId: peerId,
     }),
     [status, participants, error, muted, forcedMute, speaking, turnConfigured, isFull, canJoin,
-     canModerate, join, leave, toggleMute, moderate, peerId]
+     canModerate, audioBlocked, peerStates, join, leave, toggleMute, moderate, enableAudio, peerId]
   );
 }
 

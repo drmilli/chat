@@ -1183,3 +1183,121 @@ body {
 @media (hover: none) {
   .voice-mod-actions { opacity: 1; }
 }
+
+/* The autoplay escape hatch. Full width and unmissable: when it appears the
+   user has working audio they simply cannot hear, and a subtle control here
+   reads as "voice chat is broken". */
+.voice-unblock {
+  width: 100%;
+  padding: 7px 12px;
+}
+
+/* ---------- emoji picker ---------- */
+
+.emoji-anchor {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  flex: none;
+}
+
+.emoji-toggle {
+  font-size: 1.05rem;
+  line-height: 1;
+  /* Slightly dimmed until used, so it does not compete with send. */
+  opacity: 0.75;
+}
+
+.emoji-toggle:hover,
+.emoji-toggle.is-open { opacity: 1; }
+
+.emoji-panel {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  width: 288px;
+  /* The widget iframe is only 380px wide, so the panel must never be wider
+     than its container or it is clipped at the edge of the frame. */
+  max-width: calc(100vw - 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--stroke, rgba(15, 23, 42, 0.12));
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+}
+
+.emoji-search {
+  border: 1px solid var(--stroke, rgba(15, 23, 42, 0.12));
+  border-radius: 8px;
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.emoji-search:focus { border-color: var(--accent, #7c5cff); }
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 1px;
+  /* Roughly six rows, then scroll — a panel that grows to fit every category
+     would cover the messages the user is replying to. */
+  max-height: 196px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.emoji-cell {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 5px 0;
+  border-radius: 6px;
+}
+
+.emoji-cell:hover { background: rgba(15, 23, 42, 0.07); }
+.emoji-cell:active { transform: scale(0.92); }
+
+.emoji-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 14px 4px;
+  text-align: center;
+  font-size: 0.78rem;
+}
+
+.emoji-tabs {
+  display: flex;
+  gap: 1px;
+  border-top: 1px solid var(--stroke, rgba(15, 23, 42, 0.1));
+  padding-top: 5px;
+}
+
+.emoji-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 5px 0;
+  border-radius: 6px;
+  opacity: 0.55;
+}
+
+.emoji-tab:hover { opacity: 0.85; }
+.emoji-tab.is-active {
+  opacity: 1;
+  background: rgba(124, 92, 255, 0.13);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .emoji-cell:active { transform: none; }
+}

@@ -9,6 +9,8 @@ type VoiceLoungeProps = {
   forcedMute: boolean;
   error: string | null;
   canModerate: boolean;
+  audioBlocked: boolean;
+  peerStates: Record<string, string>;
   isFull: boolean;
   canJoin: boolean;
   supported: boolean;
@@ -20,6 +22,7 @@ type VoiceLoungeProps = {
   onToggleMute: () => void;
   onConnectWallet: () => void;
   onModerate: (peerId: string, action: 'mute' | 'unmute' | 'kick') => void;
+  onEnableAudio: () => void;
 };
 
 export function VoiceLounge({
@@ -30,6 +33,8 @@ export function VoiceLounge({
   forcedMute,
   error,
   canModerate,
+  audioBlocked,
+  peerStates,
   isFull,
   canJoin,
   supported,
@@ -41,6 +46,7 @@ export function VoiceLounge({
   onToggleMute,
   onConnectWallet,
   onModerate,
+  onEnableAudio,
 }: VoiceLoungeProps) {
   // A browser with no WebRTC gets no control at all — better than a button that
   // cannot work.
@@ -107,6 +113,11 @@ export function VoiceLounge({
             const isSelf = participant.peerId === selfPeerId;
             const name = participant.displayName || shortId(participant.address || participant.identityId);
             const isSpeaking = speaking[isSelf ? 'local' : participant.peerId];
+            // A peer whose connection never completed is listed by the server
+            // but inaudible. Showing the state is the difference between
+            // "voice chat is broken" and "this one person did not connect".
+            const connection = isSelf ? null : peerStates[participant.peerId];
+            const connecting = connection === 'connecting' || connection === 'new';
             return (
               <li
                 key={participant.peerId}
@@ -121,6 +132,11 @@ export function VoiceLounge({
                   {initials(name)}
                 </span>
                 <span className="voice-peer-name">{isSelf ? 'You' : name}</span>
+                {connecting && (
+                  <span className="voice-muted-icon" aria-label="connecting">
+                    connecting…
+                  </span>
+                )}
                 {participant.muted && (
                   <span className="voice-muted-icon" aria-label={participant.forcedMute ? 'muted by a moderator' : 'muted'}>
                     {participant.forcedMute ? 'mod-muted' : 'muted'}
@@ -151,6 +167,12 @@ export function VoiceLounge({
             );
           })}
         </ul>
+      )}
+
+      {audioBlocked && (
+        <button type="button" className="voice-btn is-join voice-unblock" onClick={onEnableAudio}>
+          🔊 Click to enable audio
+        </button>
       )}
 
       {error && <p className="voice-error">{error}</p>}

@@ -75,10 +75,20 @@ export async function fetchIdentity(): Promise<SessionIdentity | null> {
   if (!token) return null;
   try {
     return await fetchJson<SessionIdentity>('/api/auth/me');
-  } catch (err) {
-    // Expired or invalidated (e.g. the server's secret changed) — start over.
-    clearSession();
-    return null;
+  } catch (err: any) {
+    // ONLY a rejection by the server means the token is bad. This used to clear
+    // the session on ANY error, so a single dropped request — a patchy mobile
+    // connection, a backgrounded tab, a cold-starting database — destroyed a
+    // perfectly valid session. The caller was then left with no identity and no
+    // error, and the next write failed in a way that pointed nowhere near the
+    // cause. Status 0 is "could not reach the API", which says nothing about
+    // whether the token is still good.
+    if (err?.status === 401 || err?.status === 403) {
+      clearSession();
+      return null;
+    }
+    // Transient: keep the session and let the caller retry.
+    throw err;
   }
 }
 

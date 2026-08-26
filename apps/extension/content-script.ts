@@ -141,9 +141,12 @@ const WIDGET_ORIGIN = (() => {
     iframe.style.height = '56px';
     iframe.style.border = 'none';
     iframe.style.colorScheme = 'dark';
-    // Permissions-Policy delegation — without this the cross-origin widget
-    // cannot call getUserMedia, so voice messages silently fail to record.
-    iframe.allow = 'microphone';
+    // Permissions-Policy delegation. `microphone` lets the cross-origin widget
+    // call getUserMedia at all. `autoplay` is a SEPARATE feature and is just as
+    // necessary for live voice: without it the browser refuses to play the
+    // remote audio elements, so calls connect perfectly and nobody hears
+    // anything — a failure with no visible cause.
+    iframe.allow = 'microphone; autoplay';
     iframe.style.zIndex = '2147483647';
     iframe.style.transition = 'height 0.22s ease';
     // allow-forms is required or Chrome blocks the composer's submit event,

@@ -11,6 +11,8 @@ export { apiUrl, fetchJson, resolveMediaUrl, ApiError, API_BASE } from './api';
 export { ensureSession, signInWithWallet, fetchIdentity, clearSession, getToken } from './session';
 export type { SessionIdentity } from './session';
 export { readHostContext, postToHost, onHostMessage, WIDGET_PROTOCOL } from './embedBridge';
+export { EmojiPicker, rememberEmoji } from './EmojiPicker';
+export { addressChain, chainName } from './tokens';
 export { VoiceLounge } from './VoiceLounge';
 export { useVoiceLounge, isVoiceSupported } from './useVoiceLounge';
 export type { VoiceParticipant, VoiceStatus, VoiceEvent } from './useVoiceLounge';

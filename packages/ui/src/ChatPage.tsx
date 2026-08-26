@@ -8,6 +8,7 @@ import { apiUrl, fetchJson } from './api';
 import { readHostContext, postToHost } from './embedBridge';
 import { VoiceLounge } from './VoiceLounge';
 import { useVoiceLounge, type VoiceEvent } from './useVoiceLounge';
+import { addressChain, chainName } from './tokens';
 
 const erc20Abi = [
   'function name() view returns (string)',
@@ -287,16 +288,32 @@ export function ChatPage({
     postToHost(hostContext, 'resize', { height: expanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT });
   }, [embedMode, expanded, hostContext]);
 
+  const tokenChain = useMemo(() => addressChain(contractAddress), [contractAddress]);
+
   useEffect(() => {
     async function detectToken() {
+      setTokenDetails(null);
+
       if (!contractAddress) {
-        setTokenDetails(null);
         setTokenError(null);
         return;
       }
+
+      // A Solana mint is not an ERC-20 and never will be. Attempting the call
+      // throws on the address itself, which the old code reported as "unable to
+      // detect token metadata" — blaming the token for being on the wrong chain
+      // for our reader. Every real room so far is Solana, so this was the
+      // normal case, not the edge case.
+      if (tokenChain === 'solana') {
+        setTokenError('Token details for Solana mints are not available yet.');
+        return;
+      }
+      if (tokenChain !== 'evm') {
+        setTokenError('This address is not in a recognised format.');
+        return;
+      }
       if (typeof window === 'undefined' || !window.ethereum) {
-        setTokenDetails(null);
-        setTokenError('No Ethereum provider found for token detection.');
+        setTokenError('Connect an EVM wallet to read this token\'s details.');
         return;
       }
 
@@ -318,12 +335,18 @@ export function ChatPage({
         setTokenDetails({ name, symbol, balance });
         setTokenError(null);
       } catch (err) {
-        setTokenDetails(null);
-        setTokenError('Unable to detect token metadata for this contract.');
+        // The likeliest cause by far is the wallet sitting on a different chain
+        // than the token, so say that instead of implying the token is broken.
+        const on = chainName(walletChainId);
+        setTokenError(
+          on
+            ? `No ERC-20 found at this address on ${on}. Switch your wallet to the token's network.`
+            : 'Unable to read token details for this contract.'
+        );
       }
     }
     detectToken();
-  }, [walletConnected, walletAccount, contractAddress]);
+  }, [walletConnected, walletAccount, contractAddress, tokenChain, walletChainId]);
 
   async function handleReport(messageId: number, identityId: string) {
     const response = await fetch(apiUrl('/api/reports'), {
@@ -412,8 +435,8 @@ export function ChatPage({
         )}
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button type="submit" className="btn btn-primary" disabled={profile.saving}>
-            {profile.saving ? 'Saving…' : 'Save name'}
+          <button type="submit" className="btn btn-primary" disabled={profile.saving || !profile.ready}>
+            {profile.saving ? 'Saving…' : profile.ready ? 'Save name' : 'Connecting…'}
           </button>
           <button type="button" className="btn btn-ghost" onClick={() => setRenaming(false)}>
             Cancel
@@ -472,6 +495,8 @@ export function ChatPage({
       forcedMute={voice.forcedMute}
       error={voice.error}
       canModerate={voice.canModerate}
+      audioBlocked={voice.audioBlocked}
+      peerStates={voice.peerStates}
       isFull={voice.isFull}
       canJoin={voice.canJoin}
       supported={voice.supported}
@@ -482,6 +507,7 @@ export function ChatPage({
       onToggleMute={voice.toggleMute}
       onConnectWallet={connectWallet}
       onModerate={voice.moderate}
+      onEnableAudio={voice.enableAudio}
     />
   );
 
@@ -632,7 +658,16 @@ export function ChatPage({
                 <p className="stat-label">Your balance</p>
               </div>
               <div className="stat">
-                <p className="stat-value" style={{ fontSize: '1.1rem' }}>{walletChainId || 'n/a'}</p>
+                {/* The token's chain, read from the address format — this used
+                    to print the WALLET's chain id as raw hex ("0x1"), which
+                    named neither the right chain nor a chain anyone recognises. */}
+                <p className="stat-value" style={{ fontSize: '1.1rem' }}>
+                  {tokenChain === 'solana'
+                    ? 'Solana'
+                    : tokenChain === 'evm'
+                      ? chainName(walletChainId) || 'EVM'
+                      : '—'}
+                </p>
                 <p className="stat-label">Chain</p>
               </div>
             </div>
