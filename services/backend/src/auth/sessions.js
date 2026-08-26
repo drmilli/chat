@@ -104,6 +104,18 @@ function adminAllowlist() {
     .filter(Boolean);
 }
 
+/**
+ * Non-throwing counterpart to requireAdmin, for telling a client whether to
+ * render moderation controls. The authority is still requireAdmin on the route
+ * itself — this only decides whether a button is drawn, never what it may do.
+ */
+function isAdminSession(session) {
+  const allowlist = adminAllowlist();
+  if (!allowlist.length) return false;
+  if (!session || session.kind !== 'wallet' || !session.address) return false;
+  return allowlist.includes(String(session.address).toLowerCase());
+}
+
 function requireAdmin(req, res, next) {
   const allowlist = adminAllowlist();
   if (allowlist.length === 0) {
@@ -119,4 +131,4 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { issue, verify, attachSession, requireSession, requireAdmin, adminAllowlist };
+module.exports = { issue, verify, attachSession, requireSession, requireAdmin, isAdminSession, adminAllowlist };

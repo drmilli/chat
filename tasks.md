@@ -179,6 +179,38 @@ Called for by `development-plan.md` and not yet built.
   *Verified:* with the guest tier set to 5, a guest is blocked on request 6 while a verified wallet
   sends 12 without throttling.
 
+- [~] **T-209 · Live voice chat (WebRTC)** — Owner: Backend + Frontend · NEW
+  Live talk in the chat screen, alongside the existing async voice notes.
+  *Built:* signalling over the existing SSE hub (`publishToPeer` addresses one peer, so SDP and ICE
+  never broadcast to the room's listeners), `voice/rooms.js` presence with a hard cap, `voice/ice.js`
+  issuing **ephemeral** coturn REST credentials so the TURN secret never reaches a browser, and
+  `routes/voice.js` for join/signal/mute/heartbeat/leave. Client: `useVoiceLounge.ts` (mesh, ICE
+  queueing, level meters) and `VoiceLounge.tsx`, rendered in both the full room and the widget.
+  *Design calls worth knowing:*
+  - **Mesh, capped at 6, counting listeners.** Each browser uploads its mic N-1 times, so a silent
+    listener still costs every speaker an upload. "Unlimited listeners" is an SFU feature and is not
+    faked here.
+  - **Verified wallets only**, for moderation rather than revenue: live audio cannot be scanned by the
+    blocklist that guards text, and a mute must attach to something more durable than a browser tab.
+  - **Deterministic initiator** (larger peer id offers) instead of full perfect negotiation — no round
+    trip, no SDP glare.
+  - **Slots are bound to the SSE connection**, so a closed tab frees its slot immediately; the
+    staleness sweep is only the backstop.
+  - Everyone joins **muted**.
+  *Verified:* 22 new backend tests (51 total green), typecheck and all three builds pass.
+  *Still yours:* **stand up a TURN server and set `TURN_URLS`/`TURN_SECRET`** — without it 10-20% of
+  users cannot connect at all. Then test with 3+ real browsers on different networks; a mesh cannot be
+  meaningfully tested on one machine.
+  *Moderation (added):* admin-only force-mute and kick, reusing `ADMIN_WALLETS` rather than inventing a
+  second authority, plus a room ban now covering voice — someone banned from posting could otherwise
+  still hold the floor out loud.
+  **Enforcement lives with the listeners, and that is the only thing that works here.** Audio never
+  passes through the server, so it cannot stop anyone transmitting; a modified client told to mute can
+  keep sending. What it can do is tell every *other* client to stop listening — receivers silence a
+  mod-muted peer locally and refuse to renegotiate with a kicked one. The offender's cooperation is
+  never required. Kicks are keyed by **identity, not peer id**, or a refresh would undo them.
+  *Not built:* no SFU path — see the note in `voice/rooms.js` before letting rooms grow.
+
 - [ ] **T-206 · WalletConnect for mobile wallets** — Owner: Frontend · 3 days
   EIP-6963 + injected Phantom covers browser-extension wallets only. Mobile users cannot connect.
   *Acceptance:* a mobile wallet connects via QR and can post as a verified identity.

@@ -40,6 +40,30 @@ Only when you actively use the chat:
 Chat messages and voice notes are visible to anyone who opens that token's room.
 Do not post anything you would not say in public.
 
+### Live voice chat
+
+Live voice chat is **opt-in and off until you press "Join voice"**, and it
+requires a connected wallet. You join with your microphone **muted**; it only
+opens when you press "Unmute".
+
+- **Your audio is not sent to our servers and is not recorded.** Live voice uses
+  WebRTC, which connects your browser directly to the other participants. What
+  our server relays is only the small connection-setup messages browsers need to
+  find each other (network addresses and audio-format descriptions).
+- **Direct connections reveal your IP address to the other participants in the
+  call.** This is inherent to peer-to-peer audio, not specific to us. Where a
+  direct connection is impossible, audio is routed through a relay server
+  instead, which sees encrypted traffic but not its contents.
+- **Anyone in the room can hear you while you are unmuted.** Live audio is not
+  recorded, so unlike text it cannot be reviewed after the fact — which is why
+  speaking requires a verified wallet.
+- **Moderators can mute or remove you from a voice call.** Because audio is
+  peer-to-peer, this works by telling everyone else's browser to stop playing
+  your audio, rather than by cutting off your microphone. Being removed also
+  keeps you out of that room's voice chat for a cooling-off period.
+- Leaving the call, or closing the tab, stops your microphone and removes you
+  from the session.
+
 ## Technical data
 
 Our API records request counts per IP address and per identity, held in memory,
@@ -55,6 +79,8 @@ addresses.
   extension.
 - We do not sell or share your data with third parties, and we run no advertising
   or third-party analytics trackers in the extension.
+- We never record live voice chat, and we never open your microphone without you
+  pressing "Join voice" and then "Unmute".
 
 ## Deletion
 

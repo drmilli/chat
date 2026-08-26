@@ -9,11 +9,14 @@ const adminRouter = require('./routes/admin');
 const activityRouter = require('./routes/activity');
 const identitiesRouter = require('./routes/identities');
 const audioRouter = require('./routes/audio');
+const voiceRouter = require('./routes/voice');
 const { rateLimiter } = require('./middleware/rateLimiter');
 const { errorHandler } = require('./middleware/errorHandler');
 const { attachSession, requireAdmin } = require('./auth/sessions');
 const { createRealtimeClient } = require('./realtime/adapter');
 const hub = require('./realtime/hub');
+const voiceRooms = require('./voice/rooms');
+const { warnIfIncomplete } = require('./voice/ice');
 
 const app = express();
 
@@ -57,13 +60,21 @@ app.use(rateLimiter);
 app.get('/api/health', async (req, res) => {
   try {
     const result = await query('SELECT 1 AS ok');
-    res.json({ status: 'ok', db: result.rows[0].ok === 1, realtime: hub.stats() });
+    res.json({
+      status: 'ok',
+      db: result.rows[0].ok === 1,
+      realtime: hub.stats(),
+      voice: voiceRooms.stats(),
+    });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
 app.use('/api/rooms', messagesRouter);
+// WebRTC signalling for live voice. Mounted on the same base as rooms so the
+// room id means the same thing in both.
+app.use('/api/rooms', voiceRouter);
 app.use('/api/activity', activityRouter);
 app.use('/api/identities', identitiesRouter);
 app.use('/api/messages', audioRouter);
@@ -73,6 +84,10 @@ app.use('/api/admin', requireAdmin, adminRouter);
 app.use('/api/auth', authRouter);
 
 app.use(errorHandler);
+
+// Surfaces a missing TURN relay at boot rather than as a user who "cannot hear
+// anyone" for reasons that look like a client bug.
+warnIfIncomplete();
 
 realtime.connect().catch((err) => {
   console.warn('Realtime adapter failed to connect:', err.message || err);

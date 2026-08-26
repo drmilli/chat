@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { query } = require('../db');
 const hub = require('../realtime/hub');
+const voiceRouter = require('./voice');
 const { requireSession } = require('../auth/sessions');
 const {
   contentMatchesBlockedPatterns,
@@ -122,13 +123,18 @@ router.get('/:id/stream', (req, res) => {
     res.write(`data: ${JSON.stringify(event.data)}\n\n`);
   };
 
-  const unsubscribe = hub.subscribe(roomId, send);
+  // The peer id is issued here, not accepted from the client: it is the
+  // identity WebRTC signalling is addressed to, and a client that could pick
+  // its own would be able to claim another participant's voice slot.
+  const peerId = voiceRouter.newPeerId();
+
+  const unsubscribe = hub.subscribe(roomId, send, { peerId });
   if (!unsubscribe) {
     send({ type: 'error', data: { error: 'Too many live connections, retry shortly' } });
     return res.end();
   }
 
-  send({ type: 'ready', data: { roomId } });
+  send({ type: 'ready', data: { roomId, peerId } });
 
   // Keeps proxies from culling an idle connection AND lets the client tell a
   // live stream from a silently dead one. A bare comment line would keep the
@@ -140,6 +146,11 @@ router.get('/:id/stream', (req, res) => {
   req.on('close', () => {
     clearInterval(heartbeat);
     unsubscribe();
+    // Releasing the voice slot here is what keeps a six-slot room usable: a
+    // browser closed mid-call sends no "leave", and a handful of leaked slots
+    // would make the room permanently unjoinable. The staleness sweep in
+    // voice/rooms.js is only the backstop for when this never fires.
+    voiceRouter.releaseOnDisconnect(roomId, peerId);
   });
 });
 

@@ -6,6 +6,8 @@ import { avatarGradient, initials, shortId } from './identity';
 import { MAX_NAME_LENGTH, useProfile } from './useProfile';
 import { apiUrl, fetchJson } from './api';
 import { readHostContext, postToHost } from './embedBridge';
+import { VoiceLounge } from './VoiceLounge';
+import { useVoiceLounge, type VoiceEvent } from './useVoiceLounge';
 
 const erc20Abi = [
   'function name() view returns (string)',
@@ -85,6 +87,14 @@ export function ChatPage({
   const [sendError, setSendError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
+  // The peer id is issued by the server on each SSE `ready`. It is the address
+  // WebRTC signalling is routed to, and it CHANGES on every reconnect — the
+  // voice hook watches it so a dropped stream does not leave a half-dead call.
+  const [peerId, setPeerId] = useState<string | null>(null);
+  // Voice frames are fanned out from the one EventSource rather than opening a
+  // second stream: a second connection would double the server's client count
+  // and still be no more live than this one.
+  const voiceListeners = useRef(new Set<(event: VoiceEvent) => void>());
 
   const profile = useProfile(walletAccount);
   const identity = profile.identityId;
@@ -160,11 +170,16 @@ export function ChatPage({
       const next = new EventSource(apiUrl(`/api/rooms/${encodeURIComponent(contractAddress)}/stream`));
       source = next;
 
-      next.addEventListener('ready', () => {
+      next.addEventListener('ready', (event) => {
         lastEventAt = Date.now();
         attempts = 0;
         opens += 1;
         setLive(true);
+        try {
+          setPeerId(JSON.parse((event as MessageEvent).data)?.peerId ?? null);
+        } catch {
+          setPeerId(null);
+        }
         // A dropped connection may have missed messages, so resync on every
         // reconnect (the first open is covered by the initial load).
         if (opens > 1) loadMessages({ initial: false });
@@ -184,6 +199,18 @@ export function ChatPage({
           /* ignore a malformed frame rather than tearing down the stream */
         }
       });
+
+      for (const type of ['voice-peer-joined', 'voice-peer-left', 'voice-peer-updated', 'voice-signal'] as const) {
+        next.addEventListener(type, (event) => {
+          lastEventAt = Date.now();
+          try {
+            const data = JSON.parse((event as MessageEvent).data);
+            for (const listener of voiceListeners.current) listener({ type, data } as VoiceEvent);
+          } catch {
+            /* ignore a malformed frame rather than tearing down the stream */
+          }
+        });
+      }
 
       next.onerror = () => {
         next.close();
@@ -210,8 +237,26 @@ export function ChatPage({
       if (retryTimer) clearTimeout(retryTimer);
       source?.close();
       setLive(false);
+      setPeerId(null);
     };
   }, [contractAddress, loadMessages]);
+
+  const subscribeToVoice = useCallback((handler: (event: VoiceEvent) => void) => {
+    voiceListeners.current.add(handler);
+    return () => {
+      voiceListeners.current.delete(handler);
+    };
+  }, []);
+
+  const voice = useVoiceLounge({
+    roomId: contractAddress,
+    peerId,
+    // Verified wallets only — a mute or ban has to attach to something more
+    // durable than a browser tab, and live audio cannot be scanned by the
+    // blocklist that guards text.
+    canJoin: Boolean(walletConnected && walletAccount),
+    subscribe: subscribeToVoice,
+  });
 
   // Sidebar room list — skipped in the embedded widget, which has no sidebar.
   useEffect(() => {
@@ -418,6 +463,28 @@ export function ChatPage({
     />
   );
 
+  const voiceLounge = (
+    <VoiceLounge
+      status={voice.status}
+      participants={voice.participants}
+      speaking={voice.speaking}
+      muted={voice.muted}
+      forcedMute={voice.forcedMute}
+      error={voice.error}
+      canModerate={voice.canModerate}
+      isFull={voice.isFull}
+      canJoin={voice.canJoin}
+      supported={voice.supported}
+      turnConfigured={voice.turnConfigured}
+      selfPeerId={voice.selfPeerId}
+      onJoin={voice.join}
+      onLeave={voice.leave}
+      onToggleMute={voice.toggleMute}
+      onConnectWallet={connectWallet}
+      onModerate={voice.moderate}
+    />
+  );
+
   const composer = (
     <ChatComposer
       contractAddress={contractAddress}
@@ -457,6 +524,7 @@ export function ChatPage({
         {expanded ? (
           <>
             {errorBanner}
+            {voiceLounge}
             {history}
             {sendError ? <p className="tg-identity" style={{ color: 'var(--danger)', padding: '0 12px' }}>{sendError}</p> : null}
             {composer}
@@ -573,6 +641,8 @@ export function ChatPage({
         ) : null}
 
         {errorBanner}
+
+        {voiceLounge}
 
         {history}
 

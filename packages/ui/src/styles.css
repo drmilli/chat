@@ -999,3 +999,187 @@ body {
   .stat-value { font-size: 1.5rem; }
   .modal { padding: 16px; }
 }
+
+/* ---------- live voice chat (WebRTC mesh) ---------- */
+
+.voice-lounge {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border, rgba(15, 23, 42, 0.08));
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.voice-lounge.is-live {
+  background: rgba(45, 212, 167, 0.09);
+}
+
+.voice-lounge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.voice-lounge-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.voice-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted, #94a3b8);
+  flex: none;
+}
+
+.voice-dot.is-live {
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  animation: voice-pulse 2s infinite;
+}
+
+/* One pulse for "live", not a per-speaker animation — a room of six animated
+   avatars is a distraction, and reduced-motion users opt out below. */
+@keyframes voice-pulse {
+  70% { box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.voice-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted, #64748b);
+  font-weight: 500;
+}
+
+.voice-lounge-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.voice-btn {
+  border: 1px solid var(--border, rgba(15, 23, 42, 0.12));
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: inherit;
+}
+
+.voice-btn:hover:not(:disabled) { background: rgba(15, 23, 42, 0.04); }
+.voice-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.voice-btn.is-join { background: #0f172a; color: #fff; border-color: #0f172a; }
+.voice-btn.is-join:hover:not(:disabled) { background: #1e293b; }
+/* "Hot" means the microphone is actually open — the one state worth shouting. */
+.voice-btn.is-hot { background: #ef4444; color: #fff; border-color: #ef4444; }
+.voice-btn.is-leave { color: #b91c1c; }
+
+.voice-peers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.voice-peer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 3px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid var(--border, rgba(15, 23, 42, 0.1));
+  font-size: 0.75rem;
+  /* Border colour carries the speaking state, so the tile never reflows and
+     the row cannot jitter while people talk. */
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.voice-peer.is-speaking {
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.18);
+}
+
+.voice-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+  flex: none;
+}
+
+.voice-peer-name {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-muted-icon {
+  color: var(--muted, #94a3b8);
+  font-size: 0.65rem;
+}
+
+.voice-error,
+.voice-note {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.voice-error { color: var(--danger, #b91c1c); }
+.voice-note { color: var(--muted, #64748b); }
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-dot.is-live { animation: none; }
+  .voice-peer { transition: none; }
+}
+
+/* Moderator controls sit inside the peer tile, revealed on hover so a room of
+   six does not read as a wall of buttons. Always visible on touch, where there
+   is no hover to reveal them. */
+.voice-mod-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: 2px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.voice-peer:hover .voice-mod-actions,
+.voice-peer:focus-within .voice-mod-actions {
+  opacity: 1;
+}
+
+.voice-mod-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 2px 3px;
+  border-radius: 4px;
+  color: var(--muted, #64748b);
+}
+
+.voice-mod-btn:hover { background: rgba(15, 23, 42, 0.08); }
+.voice-mod-btn.is-kick:hover { background: rgba(239, 68, 68, 0.15); color: #b91c1c; }
+
+@media (hover: none) {
+  .voice-mod-actions { opacity: 1; }
+}
