@@ -210,7 +210,12 @@ function heartbeat(roomId, peerId, now = Date.now()) {
 
 function list(roomId, now = Date.now()) {
   sweep(roomId, now);
-  return [...participantsOf(roomId).values()].map(publicView);
+  // Deliberately NOT participantsOf(): that creates the room if missing, so
+  // merely *reading* an unknown room allocated a permanent empty Map. The
+  // participants endpoint is public and unauthenticated, so anyone could grow
+  // this map without bound by enumerating room ids. Reads must not allocate.
+  const participants = rooms.get(roomId);
+  return participants ? [...participants.values()].map(publicView) : [];
 }
 
 function listOthers(roomId, peerId, now = Date.now()) {

@@ -21,6 +21,12 @@ not observe your browsing elsewhere.
 - The contract address detected on the current tab, and a short history of
   recently detected addresses (`chrome.storage.local`).
 - Your session token and chosen display name (`localStorage`).
+- A copy of your session token in `chrome.storage.local`, once you sign in on
+  the Token Chat web app. This exists because Chrome keeps separate storage for
+  a site opened directly and the same site embedded in a page, so the chat
+  widget on a token page cannot otherwise see that you signed in. The extension
+  holds the token only to hand it back to its own chat widget, on its own
+  origin. **It is never sent to the site you are visiting.**
 
 Clearing the extension's storage or your browser data removes all of it. The
 "Clear" button in the extension popup erases the detected-address history.

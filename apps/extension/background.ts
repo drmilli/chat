@@ -106,4 +106,3 @@ chrome.tabs.onUpdated.addListener((tabId: number, changeInfo: any) => {
   }
 });
 
-console.log('Token Chat extension background worker loaded');

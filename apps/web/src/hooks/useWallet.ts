@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { signInWithWallet } from '@token-chat/ui';
+import { signInWithWallet, clearSession } from '@token-chat/ui';
 import {
   getWalletConnectProvider,
   isWalletConnectConfigured,
   restoreWalletConnectSession,
+  disconnectWalletConnect,
 } from '../wallet/walletconnect';
 
 export type WalletKind = 'evm' | 'solana';
@@ -410,6 +411,20 @@ export function useWallet() {
     setWallet((current) => ({ ...current, choosing: true, error: null }));
   }, [connectWith]);
 
+  /**
+   * Ends the connection.
+   *
+   * A WalletConnect session is not like an injected one: it survives a reload
+   * and exists in the wallet app too. Clearing it only here would leave the
+   * user's phone showing an active connection to a site that has forgotten it,
+   * with no way to revoke from our side.
+   */
+  const disconnect = useCallback(async () => {
+    await disconnectWalletConnect().catch(() => {});
+    clearSession();
+    setWallet((current) => ({ ...initialState, wallets: current.wallets }));
+  }, []);
+
   const dismissError = useCallback(() => {
     setWallet((current) => ({ ...current, error: null }));
   }, []);
@@ -418,5 +433,5 @@ export function useWallet() {
     setWallet((current) => ({ ...current, choosing: false }));
   }, []);
 
-  return { wallet, connect, connectWith, dismissError, cancelChoosing };
+  return { wallet, connect, connectWith, disconnect, dismissError, cancelChoosing };
 }

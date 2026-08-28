@@ -199,3 +199,19 @@ test('find returns the public view, not internal bookkeeping', () => {
   assert.equal(found.sessionToken, undefined);
   assert.equal(found.lastSeenAt, undefined);
 });
+
+test('reading an unknown room does not allocate one', () => {
+  // /voice/participants is public and unauthenticated. When `list` created the
+  // room it touched, anyone could grow the map without bound just by asking
+  // about room ids that do not exist.
+  const before = voiceRooms.stats().voiceRooms;
+  assert.deepEqual(voiceRooms.list('a-room-nobody-is-in'), []);
+  assert.equal(voiceRooms.has('a-room-nobody-is-in', 'anyone'), false);
+  assert.equal(voiceRooms.stats().voiceRooms, before, 'reads must not allocate');
+});
+
+test('sweeping an unknown room does not allocate one either', () => {
+  const before = voiceRooms.stats().voiceRooms;
+  assert.deepEqual(voiceRooms.sweep('another-unknown-room'), []);
+  assert.equal(voiceRooms.stats().voiceRooms, before);
+});

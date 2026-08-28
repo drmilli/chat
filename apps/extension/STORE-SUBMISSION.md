@@ -22,6 +22,13 @@ this list exists to reduce them.
 
 - [ ] **Host the privacy policy at a public URL** and put that URL in the listing.
       The store rejects data-handling extensions without one.
+- [ ] **Explain the second content script.** `session-bridge.js` runs only on
+      our own web app (`token-chat.vercel.app`) and does one thing: copy the
+      signed-in session token into extension storage so the chat widget can see
+      it. Reviewers see two content scripts and will ask why; the answer is
+      Chrome's third-party storage partitioning, which stops the embedded widget
+      from reading a session created in a first-party tab.
+
 - [ ] **Justify each permission in the listing form.** Expected answers:
       `storage` — remembering detected addresses and your session;
       host permissions — reading the contract address on the three supported
