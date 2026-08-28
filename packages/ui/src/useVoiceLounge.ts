@@ -30,6 +30,18 @@ export type VoiceParticipant = {
 
 export type VoiceStatus = 'idle' | 'joining' | 'live' | 'error';
 
+/** Enough to tell a connection fault from a playback fault. */
+export type PeerDiagnostics = {
+  connection: string;
+  ice: string;
+  bytesReceived: number;
+  packetsReceived: number;
+  /** 'relay' means the audio is flowing through TURN. */
+  candidatePair: string | null;
+  /** Whether the <audio> element for this peer is actually playing. */
+  playing: boolean;
+};
+
 export type VoiceEvent =
   | { type: 'voice-peer-joined'; data: { participant: VoiceParticipant } }
   | { type: 'voice-peer-left'; data: { peerId: string; reason?: string } }
@@ -80,6 +92,7 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
   const [audioBlocked, setAudioBlocked] = useState(false);
   /** remoteId -> RTCPeerConnectionState, so the UI can show a stalled peer. */
   const [peerStates, setPeerStates] = useState<Record<string, string>>({});
+  const [diagnostics, setDiagnostics] = useState<Record<string, PeerDiagnostics>>({});
   /** Set when a moderator silenced us, so the unmute control stays disabled. */
   const [forcedMute, setForcedMute] = useState(false);
 
@@ -142,15 +155,30 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
     });
   }, []);
 
-  /** Attaches an analyser so the UI can show who is actually talking. */
-  const attachMeter = useCallback((id: string, stream: MediaStream) => {
+  /**
+   * Level meter for the LOCAL microphone only.
+   *
+   * ⚠️ NEVER CALL THIS WITH A REMOTE STREAM. Routing a remote WebRTC stream
+   * through `createMediaStreamSource` is a long-standing Chrome problem: the
+   * stream gets pulled into the Web Audio graph, and because the analyser is
+   * not connected to `destination`, the <audio> element playing that same
+   * stream goes SILENT. Everything looks connected and nobody can hear anyone —
+   * which is exactly the bug this comment exists to stop coming back.
+   *
+   * Remote speaking levels come from getSynchronizationSources() instead (see
+   * the polling effect below), which reports audioLevel without touching the
+   * audio path at all.
+   *
+   * The local mic is safe here because it is never played back to ourselves.
+   */
+  const attachLocalMeter = useCallback((stream: MediaStream) => {
     try {
       audioCtx.current ||= new (window.AudioContext || (window as any).webkitAudioContext)();
       const source = audioCtx.current.createMediaStreamSource(stream);
       const analyser = audioCtx.current.createAnalyser();
       analyser.fftSize = 256;
       source.connect(analyser);
-      meters.current.set(id, { analyser, data: new Uint8Array(analyser.frequencyBinCount) });
+      meters.current.set('local', { analyser, data: new Uint8Array(analyser.frequencyBinCount) });
     } catch {
       // A level meter is a nicety; never let it stop a call from connecting.
     }
@@ -198,7 +226,7 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
           () => setAudioBlocked(false),
           () => setAudioBlocked(true)
         );
-        attachMeter(remoteId, stream);
+        // Deliberately NOT metered here — see attachLocalMeter.
       };
 
       pc.onconnectionstatechange = () => {
@@ -222,7 +250,7 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
 
       return pc;
     },
-    [attachMeter, dropPeer, post]
+    [dropPeer, post]
   );
 
   /**
@@ -318,6 +346,7 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
     setForcedMute(false);
     setAudioBlocked(false);
     setPeerStates({});
+    setDiagnostics({});
     refused.current.clear();
     if (me) await post('leave', { peerId: me }).catch(() => {});
   }, [dropPeer, post]);
@@ -346,7 +375,7 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
       // Join muted — an open microphone the user did not deliberately open is
       // a privacy failure, not a convenience.
       stream.getAudioTracks().forEach((track) => { track.enabled = false; });
-      attachMeter('local', stream);
+      attachLocalMeter(stream);
 
       const result = await post<JoinResponse>('join', { peerId: peerIdRef.current });
       iceConfig.current = result.iceServers;
@@ -371,7 +400,7 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
       setStatus('error');
       setError(describeJoinError(err));
     }
-  }, [attachMeter, offerTo, post, shouldOffer]);
+  }, [attachLocalMeter, offerTo, post, shouldOffer]);
 
   const toggleMute = useCallback(async () => {
     // A moderator's mute is not the participant's to lift.
@@ -484,23 +513,94 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
 
   leaveRef.current = leave;
 
-  // Level meters, polled rather than per-frame — this only drives an indicator.
+  // Speaking levels, polled rather than per-frame — this only drives an indicator.
+  //
+  // Local level comes from the analyser. REMOTE levels come from
+  // getSynchronizationSources(), never from Web Audio: see attachLocalMeter for
+  // why routing a remote stream through an AudioContext silences it.
   useEffect(() => {
     if (status !== 'live') return;
     const timer = setInterval(() => {
       const next: Record<string, boolean> = {};
-      for (const [id, meter] of meters.current) {
-        meter.analyser.getByteFrequencyData(meter.data as any);
+
+      const local = meters.current.get('local');
+      if (local) {
+        local.analyser.getByteFrequencyData(local.data as any);
         let sum = 0;
-        for (let i = 0; i < meter.data.length; i += 1) sum += meter.data[i];
-        next[id] = sum / meter.data.length / 255 > SPEAKING_THRESHOLD;
+        for (let i = 0; i < local.data.length; i += 1) sum += local.data[i];
+        next.local = sum / local.data.length / 255 > SPEAKING_THRESHOLD;
       }
+
+      for (const [remoteId, pc] of peers.current) {
+        let level = 0;
+        for (const receiver of pc.getReceivers()) {
+          // audioLevel is 0..1 and is reported by the browser's own decoder,
+          // so it costs nothing and cannot interfere with playback.
+          for (const source of receiver.getSynchronizationSources?.() ?? []) {
+            if (typeof source.audioLevel === 'number') level = Math.max(level, source.audioLevel);
+          }
+        }
+        next[remoteId] = level > SPEAKING_THRESHOLD;
+      }
+
       // The local tile should not light up while muted.
       if (muted) next.local = false;
       setSpeaking(next);
     }, 200);
     return () => clearInterval(timer);
   }, [status, muted]);
+
+  /**
+   * Diagnostics.
+   *
+   * `bytesReceived` splits the whole problem space in one number: above zero
+   * means audio IS arriving and any silence is a PLAYBACK fault (autoplay, a
+   * muted element, the Web Audio trap); zero means it never arrived and the
+   * fault is in the CONNECTION (ICE, TURN, signalling). Without it, "no sound"
+   * is unfalsifiable and every fix is a guess.
+   */
+  useEffect(() => {
+    if (status !== 'live') return;
+
+    const timer = setInterval(async () => {
+      const next: Record<string, PeerDiagnostics> = {};
+
+      for (const [remoteId, pc] of peers.current) {
+        const entry: PeerDiagnostics = {
+          connection: pc.connectionState,
+          ice: pc.iceConnectionState,
+          bytesReceived: 0,
+          packetsReceived: 0,
+          candidatePair: null,
+          playing: false,
+        };
+
+        try {
+          const stats = await pc.getStats();
+          stats.forEach((report: any) => {
+            if (report.type === 'inbound-rtp' && report.kind === 'audio') {
+              entry.bytesReceived = report.bytesReceived ?? 0;
+              entry.packetsReceived = report.packetsReceived ?? 0;
+            }
+            // 'relay' here means the audio is going through TURN.
+            if (report.type === 'candidate-pair' && report.state === 'succeeded' && report.nominated) {
+              entry.candidatePair = report.localCandidateType ?? null;
+            }
+          });
+        } catch {
+          /* stats are best-effort */
+        }
+
+        const el = audioEls.current.get(remoteId);
+        entry.playing = Boolean(el && !el.paused && !el.muted && el.readyState > 0);
+        next[remoteId] = entry;
+      }
+
+      setDiagnostics(next);
+    }, 2000);
+
+    return () => clearInterval(timer);
+  }, [status]);
 
   // A reconnect issues a NEW peer id, which orphans every connection negotiated
   // against the old one. Rejoining is the only way back to a working call.
@@ -525,13 +625,13 @@ export function useVoiceLounge({ roomId, peerId, canJoin, subscribe }: UseVoiceL
   return useMemo(
     () => ({
       status, participants, error, muted, forcedMute, speaking, turnConfigured, isFull, canJoin,
-      canModerate, audioBlocked, peerStates,
+      canModerate, audioBlocked, peerStates, diagnostics,
       join, leave, toggleMute, moderate, enableAudio,
       supported: isVoiceSupported(),
       selfPeerId: peerId,
     }),
     [status, participants, error, muted, forcedMute, speaking, turnConfigured, isFull, canJoin,
-     canModerate, audioBlocked, peerStates, join, leave, toggleMute, moderate, enableAudio, peerId]
+     canModerate, audioBlocked, peerStates, diagnostics, join, leave, toggleMute, moderate, enableAudio, peerId]
   );
 }
 

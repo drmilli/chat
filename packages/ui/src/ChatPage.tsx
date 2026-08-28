@@ -524,6 +524,7 @@ export function ChatPage({
       canModerate={voice.canModerate}
       audioBlocked={voice.audioBlocked}
       peerStates={voice.peerStates}
+      diagnostics={voice.diagnostics}
       isFull={voice.isFull}
       canJoin={voice.canJoin}
       supported={voice.supported}

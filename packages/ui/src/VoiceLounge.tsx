@@ -1,5 +1,5 @@
 import { avatarGradient, initials, shortId } from './identity';
-import type { VoiceParticipant, VoiceStatus } from './useVoiceLounge';
+import type { VoiceParticipant, VoiceStatus, PeerDiagnostics } from './useVoiceLounge';
 
 type VoiceLoungeProps = {
   status: VoiceStatus;
@@ -11,6 +11,7 @@ type VoiceLoungeProps = {
   canModerate: boolean;
   audioBlocked: boolean;
   peerStates: Record<string, string>;
+  diagnostics: Record<string, PeerDiagnostics>;
   isFull: boolean;
   canJoin: boolean;
   supported: boolean;
@@ -35,6 +36,7 @@ export function VoiceLounge({
   canModerate,
   audioBlocked,
   peerStates,
+  diagnostics,
   isFull,
   canJoin,
   supported,
@@ -167,6 +169,39 @@ export function VoiceLounge({
             );
           })}
         </ul>
+      )}
+
+      {live && Object.keys(diagnostics).length > 0 && (
+        <details className="voice-diag">
+          <summary>Audio diagnostics</summary>
+          <table>
+            <tbody>
+              {Object.entries(diagnostics).map(([peerId, d]) => {
+                // The one number that matters: bytes arriving means the
+                // connection is fine and any silence is a playback fault;
+                // zero means the audio never got here at all.
+                const arriving = d.bytesReceived > 0;
+                return (
+                  <tr key={peerId}>
+                    <td className="mono">{peerId.slice(0, 6)}</td>
+                    <td>{d.connection}/{d.ice}</td>
+                    <td className={arriving ? 'ok' : 'bad'}>
+                      {arriving ? `${Math.round(d.bytesReceived / 1024)} KB in` : 'no audio received'}
+                    </td>
+                    <td className={d.playing ? 'ok' : 'bad'}>
+                      {d.playing ? 'playing' : 'not playing'}
+                    </td>
+                    <td>{d.candidatePair === 'relay' ? 'via TURN' : d.candidatePair || '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="voice-diag-hint">
+            Bytes arriving but not playing means a playback problem. No bytes means the
+            connection never carried audio.
+          </p>
+        </details>
       )}
 
       {audioBlocked && (

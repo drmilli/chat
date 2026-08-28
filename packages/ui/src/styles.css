@@ -1301,3 +1301,13 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .emoji-cell:active { transform: none; }
 }
+
+/* Audio diagnostics. Collapsed by default — it exists so "no sound" can be
+   diagnosed from a screenshot instead of a guessing round-trip. */
+.voice-diag { font-size: 0.7rem; margin-top: 2px; }
+.voice-diag summary { cursor: pointer; color: var(--muted, #64748b); padding: 2px 0; }
+.voice-diag table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+.voice-diag td { padding: 2px 4px; white-space: nowrap; }
+.voice-diag .ok { color: #15803d; }
+.voice-diag .bad { color: #b91c1c; font-weight: 600; }
+.voice-diag-hint { margin: 4px 0 0; color: var(--muted, #64748b); font-size: 0.68rem; line-height: 1.35; }
