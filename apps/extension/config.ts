@@ -10,7 +10,18 @@ const fromEnv = (key: string, fallback: string): string =>
 
 export const API_URL = fromEnv('VITE_API_URL', 'https://chat-ol91.onrender.com');
 
-export const WEB_APP_URL = fromEnv('VITE_WEB_APP_URL', 'https://token-chat.vercel.app');
+// ─── THE DOMAIN SWITCH ───────────────────────────────────────────────────────
+// The project is moving to chorustrade.online. Both domains are already in
+// `host_permissions` and in session-bridge's matches, so flipping this line and
+// rebuilding needs NO Chrome Web Store re-review.
+//
+// It still points at the Vercel domain because chorustrade.online does not
+// serve the app yet — it resolves to a parking page. Shipping a build aimed at
+// a domain that returns nothing means a reviewer opens the extension, sees it
+// fail, and rejects it.
+//
+// FLIP THIS once https://chorustrade.online actually serves the web app.
+export const WEB_APP_URL = fromEnv('VITE_WEB_APP_URL', 'https://chorustrade.online');
 
 export const SUPPORTED_SITES = [
   { host: 'gmgn.ai', label: 'GMGN' },

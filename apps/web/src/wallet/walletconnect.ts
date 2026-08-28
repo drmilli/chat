@@ -58,7 +58,7 @@ export function getWalletConnectProvider(): Promise<any> {
       // wallet's approval prompt look alarming.
       optionalMethods: ['personal_sign', 'eth_signTypedData_v4'],
       metadata: {
-        name: 'Token Chat',
+        name: 'Chorus',
         description: 'Live chat for every token page.',
         url: window.location.origin,
         icons: [`${window.location.origin}/icons/icon-128.png`],

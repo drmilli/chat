@@ -1,5 +1,5 @@
 /**
- * Content script for the Token Chat web app itself.
+ * Content script for the Chorus web app itself.
  *
  * THE PROBLEM IT SOLVES. The popup's "Connect wallet" button opens the web app
  * in its own tab, because that is where an injected wallet actually lives. The

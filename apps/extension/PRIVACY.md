@@ -1,8 +1,8 @@
-# Token Chat — Privacy Policy
+# Chorus — Privacy Policy
 
 _Last updated: 2026-08-25_
 
-This describes exactly what the Token Chat browser extension and web app collect,
+This describes exactly what the Chorus browser extension and web app collect,
 why, and what we do not do. It is written from the actual behaviour of the code,
 not from a template.
 
@@ -22,7 +22,7 @@ not observe your browsing elsewhere.
   recently detected addresses (`chrome.storage.local`).
 - Your session token and chosen display name (`localStorage`).
 - A copy of your session token in `chrome.storage.local`, once you sign in on
-  the Token Chat web app. This exists because Chrome keeps separate storage for
+  the Chorus web app. This exists because Chrome keeps separate storage for
   a site opened directly and the same site embedded in a page, so the chat
   widget on a token page cannot otherwise see that you signed in. The extension
   holds the token only to hand it back to its own chat widget, on its own

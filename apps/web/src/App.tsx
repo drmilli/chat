@@ -69,7 +69,7 @@ function Topbar({
       <Link to="/" className="flex items-center gap-3 no-underline">
         <img src="/logo.svg" alt="" width={38} height={38} className="rounded-[22%]" />
         <span className="flex flex-col leading-none">
-          <span className="text-[15px] font-normal text-[rgba(30,50,90,0.95)] tracking-tight">Token Chat</span>
+          <span className="text-[15px] font-normal text-[rgba(30,50,90,0.95)] tracking-tight">Chorus</span>
           <span className="text-[11px] uppercase tracking-[0.2em] text-[rgba(30,50,90,0.5)] mt-1">Contract rooms</span>
         </span>
       </Link>

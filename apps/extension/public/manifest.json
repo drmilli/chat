@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Token Chat Extension",
+  "name": "Chorus",
   "version": "0.1.0",
-  "description": "Adds a chat room to every token page you visit on GMGN, Axiom and Padre \u2014 one shared room per contract address, with voice notes and wallet-verified identity.",
+  "description": "Live chat on every token page \u2014 one shared room per contract address on GMGN, Axiom and Padre, with voice and verified wallets.",
   "permissions": [
     "storage"
   ],
@@ -14,13 +14,15 @@
     "https://padre.gg/*",
     "https://*.padre.gg/*",
     "https://chat-ol91.onrender.com/*",
-    "https://token-chat.vercel.app/*",
     "http://localhost:3000/*",
-    "http://localhost:4173/*"
+    "http://localhost:4173/*",
+    "https://token-chat.vercel.app/*",
+    "https://chorustrade.online/*",
+    "https://www.chorustrade.online/*"
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Token Chat",
+    "default_title": "Chorus",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
@@ -48,6 +50,8 @@
     },
     {
       "matches": [
+        "https://chorustrade.online/*",
+        "https://www.chorustrade.online/*",
         "https://token-chat.vercel.app/*",
         "http://localhost:4173/*"
       ],

@@ -38,7 +38,7 @@ export function Footer({ stats, onOpenRoom }: { stats: FooterStats; onOpenRoom: 
           <Link to="/" className="flex items-center gap-3 no-underline w-fit">
             <img src="/logo.svg" alt="" width={40} height={40} className="rounded-[22%]" />
             <span className="flex flex-col leading-none">
-              <span className="text-[17px] text-[rgba(30,50,90,0.95)] tracking-tight">Token Chat</span>
+              <span className="text-[17px] text-[rgba(30,50,90,0.95)] tracking-tight">Chorus</span>
               <span className="text-[11px] uppercase tracking-[0.2em] text-[rgba(30,50,90,0.5)] mt-1.5">
                 Contract rooms
               </span>
@@ -115,7 +115,7 @@ export function Footer({ stats, onOpenRoom }: { stats: FooterStats; onOpenRoom: 
 
       <div className="mt-10 pt-6 border-t border-[rgba(30,50,90,0.1)] flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4 flex-wrap">
-          <span className="text-[13px] text-[rgba(30,50,90,0.5)]">© {year} Token Chat</span>
+          <span className="text-[13px] text-[rgba(30,50,90,0.5)]">© {year} Chorus</span>
           <ContractAddress />
         </div>
         <span className="text-[13px] text-[rgba(30,50,90,0.5)]">

@@ -43,8 +43,38 @@ app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '8mb' }));
 // surfaced in the UI as an unexplained "network error".
 const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 
+/**
+ * Allowed browser origins, comma separated.
+ *
+ * A LIST, not a single value, because `Access-Control-Allow-Origin` may name
+ * exactly one origin per response — so a domain migration needs both the old
+ * and new origin permitted at once. With a single value, the day
+ * chorustrade.online starts serving the app is the day every API call from it
+ * fails preflight: the site loads and then does nothing, with only a CORS error
+ * in the console to explain it.
+ */
+const CORS_ORIGINS = String(process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*');
+  const requestOrigin = req.headers.origin;
+
+  if (CORS_ORIGINS.length === 0) {
+    // Unset means development: allow anything rather than fail confusingly.
+    res.header('Access-Control-Allow-Origin', '*');
+  } else if (requestOrigin && CORS_ORIGINS.includes(requestOrigin)) {
+    res.header('Access-Control-Allow-Origin', requestOrigin);
+    // Without Vary, a cache or CDN can hand one origin's allow header to a
+    // different origin — which either leaks access or blocks a legitimate one.
+    res.header('Vary', 'Origin');
+  } else {
+    // Not allowed: send the first configured origin so the browser rejects it,
+    // rather than omitting the header and making it look like a network fault.
+    res.header('Access-Control-Allow-Origin', CORS_ORIGINS[0]);
+    res.header('Vary', 'Origin');
+  }
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.header('Access-Control-Allow-Methods', ALLOWED_METHODS.join(', '));
   // Avoid a preflight before every single write.

@@ -46,9 +46,9 @@ async function setBadge(tabId: number, detected: boolean): Promise<void> {
     await chrome.action.setBadgeText({ tabId, text: detected ? '●' : '' });
     if (detected) {
       await chrome.action.setBadgeBackgroundColor({ tabId, color: '#22c55e' });
-      await chrome.action.setTitle({ tabId, title: 'Token Chat — token detected on this page' });
+      await chrome.action.setTitle({ tabId, title: 'Chorus — token detected on this page' });
     } else {
-      await chrome.action.setTitle({ tabId, title: 'Token Chat' });
+      await chrome.action.setTitle({ tabId, title: 'Chorus' });
     }
   } catch (err) {
     // Tab may have gone away between detection and badge update.
